@@ -46,12 +46,10 @@ namespace Discord_Delete_Messages
             {
                 messageList = new List<QuickType.Message>();
                 TotalResults = 0;
-                messageChunkCount = 0;
             }
 
             public List<QuickType.Message> messageList;
             public long TotalResults;
-            public long messageChunkCount;
         }
 
         private UInt64 deletedCount = 0;
@@ -170,9 +168,10 @@ namespace Discord_Delete_Messages
 
                     QuickType.SearchResult result = QuickType.SearchResult.FromJson(downloadedString);
 
-                    Search_Result_Struct search_result = new Search_Result_Struct();
-                    search_result.messageChunkCount = result.Messages.Count;
-                    search_result.TotalResults = result.TotalResults;
+                    Search_Result_Struct search_result = new Search_Result_Struct
+                    {
+                        TotalResults = result.TotalResults
+                    };
 
                     List<QuickType.Message> allMessages = new List<QuickType.Message>();
 
@@ -280,7 +279,7 @@ namespace Discord_Delete_Messages
                     }
                     else
                     {
-                        if (await get_message_count(authId, userId, channelId, isGuild, false) == 0)
+                        if (await get_message_count(authId, userId, channelId, isGuild, true) == 0)
                         {
                             addLog("Finished!");
                             return;
