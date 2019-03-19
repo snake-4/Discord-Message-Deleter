@@ -350,33 +350,33 @@ namespace Discord_Delete_Messages
                         channels.Add(channel);
                     }
                 }
-                if (channels.Count <= MaxConcurrentThreads)
+                //if (channels.Count <= MaxConcurrentThreads)
+                //{
+                foreach (Channel_Struct channel in channels)
                 {
-                    foreach (Channel_Struct channel in channels)
-                    {
-                        //TotalMessageCount += await get_message_count(authId, userId, channel.channelID, channel.isGuild, true);
-                        TaskList.Add(Task.Run(() => Delete_From_Channel(authId, userId, channel.channelID, channel.isGuild)));
-                    }
-
-                    int completed = 0;
-                    while (completed < TaskList.Count)
-                    {
-                        completed = 0;
-                        foreach (Task a in TaskList)
-                        {
-                            if (a.IsCompleted)
-                            {
-                                completed++;
-                            }
-                        }
-                        if (updateOutput)
-                        {
-                            outputRTBox.Text = $"{completed} / {TaskList.Count} : {deletedCount} / {TotalMessageCount}";
-                        }
-                        Application.DoEvents();
-                        await Task.Delay(100);
-                    }
+                    //TotalMessageCount += await get_message_count(authId, userId, channel.channelID, channel.isGuild, true);
+                    TaskList.Add(Task.Run(() => Delete_From_Channel(authId, userId, channel.channelID, channel.isGuild)));
                 }
+
+                int completed = 0;
+                while (completed < TaskList.Count)
+                {
+                    completed = 0;
+                    foreach (Task a in TaskList)
+                    {
+                        if (a.IsCompleted)
+                        {
+                            completed++;
+                        }
+                    }
+                    if (updateOutput)
+                    {
+                        outputRTBox.Text = $"{completed} / {TaskList.Count} : {deletedCount} / {TotalMessageCount}";
+                    }
+                    Application.DoEvents();
+                    await Task.Delay(100);
+                }
+                //}
                 /*else
                 {
                     foreach (Channel_Struct channel in channels)
