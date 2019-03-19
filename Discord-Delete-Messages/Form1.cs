@@ -9,6 +9,8 @@ namespace Discord_Delete_Messages
 {
     public partial class Form1 : Form
     {
+        const int MaxConcurrentThreads = 200; // Default hard-coded value
+
         public Form1()
         {
             InitializeComponent();
@@ -348,31 +350,90 @@ namespace Discord_Delete_Messages
                         channels.Add(channel);
                     }
                 }
-
-                foreach (Channel_Struct channel in channels)
+                if (channels.Count <= MaxConcurrentThreads)
                 {
-                    TotalMessageCount += await get_message_count(authId, userId, channel.channelID, channel.isGuild, true);
-                    TaskList.Add(Task.Run(() => Delete_From_Channel(authId, userId, channel.channelID, channel.isGuild)));
-                }
-
-                int completed = 0;
-                while (completed < TaskList.Count)
-                {
-                    completed = 0;
-                    foreach (Task a in TaskList)
+                    foreach (Channel_Struct channel in channels)
                     {
-                        if (a.IsCompleted)
+                        //TotalMessageCount += await get_message_count(authId, userId, channel.channelID, channel.isGuild, true);
+                        TaskList.Add(Task.Run(() => Delete_From_Channel(authId, userId, channel.channelID, channel.isGuild)));
+                    }
+
+                    int completed = 0;
+                    while (completed < TaskList.Count)
+                    {
+                        completed = 0;
+                        foreach (Task a in TaskList)
                         {
-                            completed++;
+                            if (a.IsCompleted)
+                            {
+                                completed++;
+                            }
                         }
+                        if (updateOutput)
+                        {
+                            outputRTBox.Text = $"{completed} / {TaskList.Count} : {deletedCount} / {TotalMessageCount}";
+                        }
+                        Application.DoEvents();
+                        await Task.Delay(100);
                     }
-                    if (updateOutput)
-                    {
-                        outputRTBox.Text = $"{completed} / {TaskList.Count} : {deletedCount} / {TotalMessageCount}";
-                    }
-                    Application.DoEvents();
-                    await Task.Delay(100);
                 }
+                /*else
+                {
+                    foreach (Channel_Struct channel in channels)
+                    {
+                        //TotalMessageCount += await get_message_count(authId, userId, channel.channelID, channel.isGuild, true);
+                        TaskList.Add(new Task(() => Delete_From_Channel(authId, userId, channel.channelID, channel.isGuild)));
+                    }
+
+                    int completed = 0;
+                    int running = 0;
+                    while (completed < TaskList.Count)
+                    {
+                        completed = 0;
+                        running = 0;
+                        foreach (Task a in TaskList)
+                        {
+                            if (a.IsCompleted)
+                            {
+                                completed++;
+                            }
+                            else if (a.Status == TaskStatus.Running || a.Status == TaskStatus.WaitingForActivation || a.Status == TaskStatus.WaitingToRun)
+                            {
+                                running++;
+                            }
+                        }
+
+                       if (running < MaxConcurrentThreads)
+                        {
+                            Action<List<Task>> runAnyFromTaskList = (List<Task> _tasklist) =>
+                            {
+                                foreach (Task a in _tasklist)
+                                {
+                                    if (a.Status == TaskStatus.Created)
+                                    {
+                                        a.Start();
+                                    }
+                                }
+
+
+                            };
+
+                            int countToRun = MaxConcurrentThreads - running;
+
+                            for (int i = 0; i < countToRun; i++)
+                            {
+                                TaskList[]
+                            }
+                        }
+
+                        if (updateOutput)
+                        {
+                            outputRTBox.Text = $"{completed} / {TaskList.Count} : {deletedCount} / {TotalMessageCount}";
+                        }
+                        Application.DoEvents();
+                        await Task.Delay(100);
+                    }
+                }*/
 
                 await Task.WhenAll(TaskList.ToArray());
             }
