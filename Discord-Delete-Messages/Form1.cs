@@ -426,7 +426,8 @@ namespace Discord_Delete_Messages
         {
             MessageBox.Show("If there are multiple channel ID(s), you can seperate them by using \",\"." + "\n" +
                 "Add \"G\" in front of guild ID(s) and put them in channel ID(s) box too." + "\n" +
-                "NUKE button deletes all messages from selected checkboxes.");
+                "NUKE button deletes all messages from selected checkboxes." + "\n" +
+                "P.S. GUILD means Discord server but they are reffered as GUILD in Discord API.");
         }
 
         private async void nukeButton_Click(object sender, EventArgs e)
@@ -465,7 +466,7 @@ namespace Discord_Delete_Messages
 
                 if (MessageBox.Show("This operation will delete all messages in "
                     + (nukeDMS ? "DM(s)" : "") + (nukeGUILDS && nukeDMS ? " and from " : "") + (nukeGUILDS ? "GUILD(s)" : "") + ". " +
-                    "Are you sure you want to continue?", "Question", MessageBoxButtons.YesNo) == DialogResult.No)
+                    "Are you sure you want to continue?", "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
                 {
                     return;
                 }
@@ -502,6 +503,11 @@ namespace Discord_Delete_Messages
                 channelIDsRTBox.Enabled = true;
                 this.UseWaitCursor = false;
             }
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            MessageBox.Show("Total count of message counter is broken but don't worry, the program works fine.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }

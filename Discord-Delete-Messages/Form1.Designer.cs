@@ -148,6 +148,7 @@
             this.Controls.Add(this.authID_TextBox);
             this.Name = "Form1";
             this.Text = "Discord Message Deleter by [REDACTED] v1.4";
+            this.Load += new System.EventHandler(this.Form1_Load);
             this.ResumeLayout(false);
             this.PerformLayout();
 
