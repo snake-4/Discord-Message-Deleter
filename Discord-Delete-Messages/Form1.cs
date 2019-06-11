@@ -24,7 +24,7 @@ namespace Discord_Delete_Messages
 
         private void HandleError(string exceptionMessage, [CallerMemberName] string caller = "")
         {
-            _ = MessageBox.Show("A problem occured in " + caller + "\n\nError:\n" + exceptionMessage
+            MessageBox.Show("A problem occured in " + caller + "\n\nError:\n" + exceptionMessage
                 + "\n\nPlease report this to developer! Exiting now.",
                 "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
             Environment.Exit(1);
