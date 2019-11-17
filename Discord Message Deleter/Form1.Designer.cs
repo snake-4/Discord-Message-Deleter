@@ -38,6 +38,7 @@
             this.nukeButton = new System.Windows.Forms.Button();
             this.nuke_GUILDS_CheckBox = new System.Windows.Forms.CheckBox();
             this.nuke_DMS_CheckBox = new System.Windows.Forms.CheckBox();
+            this.aboutButton = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // authID_TextBox
@@ -93,7 +94,7 @@
             // 
             // helpButton
             // 
-            this.helpButton.Location = new System.Drawing.Point(357, 194);
+            this.helpButton.Location = new System.Drawing.Point(357, 165);
             this.helpButton.Name = "helpButton";
             this.helpButton.Size = new System.Drawing.Size(103, 23);
             this.helpButton.TabIndex = 7;
@@ -131,11 +132,22 @@
             this.nuke_DMS_CheckBox.Text = "NUKE DM(s)";
             this.nuke_DMS_CheckBox.UseVisualStyleBackColor = true;
             // 
+            // aboutButton
+            // 
+            this.aboutButton.Location = new System.Drawing.Point(357, 194);
+            this.aboutButton.Name = "aboutButton";
+            this.aboutButton.Size = new System.Drawing.Size(103, 23);
+            this.aboutButton.TabIndex = 11;
+            this.aboutButton.Text = "About";
+            this.aboutButton.UseVisualStyleBackColor = true;
+            this.aboutButton.Click += new System.EventHandler(this.aboutButton_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(472, 286);
+            this.Controls.Add(this.aboutButton);
             this.Controls.Add(this.nuke_DMS_CheckBox);
             this.Controls.Add(this.nuke_GUILDS_CheckBox);
             this.Controls.Add(this.nukeButton);
@@ -147,8 +159,7 @@
             this.Controls.Add(this.startButton);
             this.Controls.Add(this.authID_TextBox);
             this.Name = "Form1";
-            this.Text = "Discord Message Deleter by [REDACTED] v1.4";
-            this.Load += new System.EventHandler(this.Form1_Load);
+            this.Text = "Discord Message Deleter by SnakePin";
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -166,6 +177,7 @@
         private System.Windows.Forms.Button nukeButton;
         private System.Windows.Forms.CheckBox nuke_GUILDS_CheckBox;
         private System.Windows.Forms.CheckBox nuke_DMS_CheckBox;
+        private System.Windows.Forms.Button aboutButton;
     }
 }
 
