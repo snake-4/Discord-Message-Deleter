@@ -5,7 +5,6 @@ using System.Windows.Forms;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Net;
 
 #pragma warning disable IDE0063 // Disable "Use simple 'using' statement" because we don't want to use C# 8.0 yet.
@@ -64,7 +63,7 @@ namespace Discord_Delete_Messages
             BaseAddress = new Uri("https://discordapp.com/api/v6/"),
         };
 
-        private async Task<List<QuickType.OnlyIDExtract>> GetUsersGuilds(string authId)
+        private async Task<List<QuickType.OnlyIDExtract>> GetUsersGuilds()
         {
             try
             {
@@ -77,7 +76,7 @@ namespace Discord_Delete_Messages
             return null;
         }
 
-        private async Task<List<QuickType.DmChatGroup>> GetUsersDmList(string authId)
+        private async Task<List<QuickType.DmChatGroup>> GetUsersDmList()
         {
             try
             {
@@ -90,7 +89,7 @@ namespace Discord_Delete_Messages
             return null;
         }
 
-        private async Task<QuickType.OnlyIDExtract> GetUserIDByAuthID(string authId)
+        private async Task<QuickType.OnlyIDExtract> GetUserIDByAuthID()
         {
             try
             {
@@ -104,14 +103,27 @@ namespace Discord_Delete_Messages
             return null;
         }
 
-        private async Task<Search_Result_Struct> GetMessagesByUserInChannelByOffset(string channelId, string userId, string offset, bool isGuild)
+        private async Task<Search_Result_Struct> GetMessagesByUserInChannelByOffset(string channelId, string userId, UInt64 offset, bool isGuild)
         {
 
             string targetRestUrl = (isGuild ? "guilds" : "channels");
             targetRestUrl += $"/{channelId}/messages/search?author_id={userId}";
-            targetRestUrl += (offset != "0") ? $"&offset={offset}" : "";
-
-            string responseJson = await httpClient.GetStringAsync(targetRestUrl);
+            targetRestUrl += (offset != 0) ? $"&offset={offset}" : "";
+            string responseJson;
+            while (true)
+            {
+                try
+                {
+                    responseJson = await httpClient.GetStringAsync(targetRestUrl);
+                    break;
+                }
+                catch (Exception exc)
+                {
+                    AddLogLine("Failed! Error:" + exc.Message);
+                }
+                await Task.Delay(1000);
+                continue;
+            }
 
             QuickType.SearchResult result = QuickType.SearchResult.FromJson(responseJson);
 
@@ -138,11 +150,11 @@ namespace Discord_Delete_Messages
         {
             var returnValueResults = new Search_Result_Struct();
 
-            int currentOffset = 0;
+            UInt64 currentOffset = 0;
 
             while (currentOffset <= 5000)
             {
-                var currentSearchResults = await GetMessagesByUserInChannelByOffset(channelId, userId, currentOffset.ToString(), isGuild);
+                var currentSearchResults = await GetMessagesByUserInChannelByOffset(channelId, userId, currentOffset, isGuild);
                 returnValueResults.TotalResults = currentSearchResults.TotalResults;
 
                 int currentMessageCount = currentSearchResults.messageList.Count;
@@ -151,7 +163,7 @@ namespace Discord_Delete_Messages
                     break;
                 }
 
-                currentOffset += currentMessageCount;
+                currentOffset += (UInt64)currentMessageCount;
                 foreach (var message in currentSearchResults.messageList)
                 {
                     if (!returnValueResults.messageList.Exists(x => x.Id == message.Id))
@@ -176,30 +188,31 @@ namespace Discord_Delete_Messages
                 messageList = messageList.Where(x => x.Type == 0 && x.Author.Id == userId).ToList();
                 foreach (var message in messageList)
                 {
-                START_DELETE_MESSAGE:
-                    AddLogLine("Removing " + message.Id);
-                    try
+                    while (true)
                     {
-                        HttpRequestMessage request = new HttpRequestMessage
+                        AddLogLine("Removing " + message.Id);
+                        try
                         {
-                            Method = HttpMethod.Delete,
-                            RequestUri = new Uri(httpClient.BaseAddress.ToString() + $"channels/{message.ChannelId}/messages/{message.Id}")
-                        };
-                        var response = await httpClient.SendAsync(request);
+                            HttpRequestMessage request = new HttpRequestMessage
+                            {
+                                Method = HttpMethod.Delete,
+                                RequestUri = new Uri(httpClient.BaseAddress.ToString() + $"channels/{message.ChannelId}/messages/{message.Id}")
+                            };
+                            var response = await httpClient.SendAsync(request);
 
-                        if (response.StatusCode == HttpStatusCode.NoContent || response.StatusCode == HttpStatusCode.OK)
-                        {
-                            AddLogLine("Deleted a message! " + message.Id);
-                            deletedCount++;
-                            continue;
+                            if (response.StatusCode == HttpStatusCode.NoContent || response.StatusCode == HttpStatusCode.OK)
+                            {
+                                AddLogLine("Deleted a message! " + message.Id);
+                                deletedCount++;
+                                break;
+                            }
                         }
+                        catch (Exception exc)
+                        {
+                            AddLogLine("Failed! Error:" + exc.Message);
+                        }
+                        await Task.Delay(1000);
                     }
-                    catch (Exception exc)
-                    {
-                        AddLogLine("Failed! Error:" + exc.Message);
-                    }
-                    await Task.Delay(1000);
-                    goto START_DELETE_MESSAGE;
                 }
 
                 AddLogLine("Finished!");
@@ -278,7 +291,7 @@ namespace Discord_Delete_Messages
                 httpClient.DefaultRequestHeaders.Remove("Authorization");
                 httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", authID);
 
-                string userID = (await GetUserIDByAuthID(authID)).Id;
+                string userID = (await GetUserIDByAuthID()).Id;
                 if (userID == null)
                 {
                     MessageBox.Show("Make sure AuthID is correct!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -321,7 +334,7 @@ namespace Discord_Delete_Messages
                 httpClient.DefaultRequestHeaders.Remove("Authorization");
                 httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", authID);
 
-                string userID = (await GetUserIDByAuthID(authID)).Id;
+                string userID = (await GetUserIDByAuthID()).Id;
                 if (userID == null)
                 {
                     MessageBox.Show("Make sure AuthID is correct!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -345,14 +358,14 @@ namespace Discord_Delete_Messages
 
                 if (nukeDMS)
                 {
-                    foreach (QuickType.DmChatGroup dmChat in await GetUsersDmList(authID))
+                    foreach (QuickType.DmChatGroup dmChat in await GetUsersDmList())
                     {
                         channelIds.Add(dmChat.Id);
                     }
                 }
                 if (nukeGUILDS)
                 {
-                    foreach (QuickType.OnlyIDExtract onlyGUILD in await GetUsersGuilds(authID))
+                    foreach (QuickType.OnlyIDExtract onlyGUILD in await GetUsersGuilds())
                     {
                         channelIds.Add("G" + onlyGUILD.Id);
                     }
@@ -391,7 +404,7 @@ namespace Discord_Delete_Messages
 
         private void aboutButton_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Made by https://github.com/SnakePin");
+            MessageBox.Show("Made by https://github.com/SnakePin." + Environment.NewLine + "Version: " + ProductVersion);
             //TODO: show about form here
         }
     }

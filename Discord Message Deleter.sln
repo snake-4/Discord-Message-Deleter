@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.28606.126
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Discord-Delete-Messages", "Discord-Delete-Messages\Discord-Delete-Messages.csproj", "{0B1BB019-313C-40AD-8640-F0F0F8148104}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Discord Message Deleter", "Discord Message Deleter\Discord Message Deleter.csproj", "{0B1BB019-313C-40AD-8640-F0F0F8148104}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
