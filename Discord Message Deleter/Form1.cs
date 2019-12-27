@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Net.Http;
 using System.Net;
+using System.IO;
 
 #pragma warning disable IDE0063 // Disable "Use simple 'using' statement" because we don't want to use C# 8.0 yet.
 
@@ -19,10 +20,7 @@ namespace Discord_Delete_Messages
             outputRTBox.ReadOnly = true;
         }
 
-        private void AddLogLine(string text)
-        {
-            Console.WriteLine(text);
-        }
+        private void AddLogLine(string text) => Console.WriteLine(text);
 
         private void ShowErrorAndExit(string exceptionMessage, [CallerMemberName] string caller = "")
         {
@@ -43,10 +41,9 @@ namespace Discord_Delete_Messages
             public bool isGuild;
             public string channelID;
         }
-
-        class Search_Result_Struct
+        class DiscordSearchResult
         {
-            public Search_Result_Struct()
+            public DiscordSearchResult()
             {
                 messageList = new List<QuickType.Message>();
                 TotalResults = 0;
@@ -56,101 +53,63 @@ namespace Discord_Delete_Messages
             public long TotalResults;
         }
 
-        private ulong deletedCount = 0;
+        static readonly HttpClient httpClient = new HttpClient();
 
-        static readonly HttpClient httpClient = new HttpClient()
+        const string discordApiUrl = "https://discordapp.com/api/v6/";
+
+        private async Task<HttpResponseMessage> HttpRequestAndWaitRatelimit(HttpRequestMessage request)
         {
-            BaseAddress = new Uri("https://discordapp.com/api/v6/"),
-        };
+            //request.Headers.Add("X-RateLimit-Precision", "millisecond");
 
-        private async Task<List<QuickType.OnlyIDExtract>> GetUsersGuilds()
-        {
-            try
-            {
-                return QuickType.OnlyIDExtract.FromJsonList(await httpClient.GetStringAsync("users/@me/guilds"));
-            }
-            catch (Exception exc)
-            {
-                ShowErrorAndExit(exc.Message);
-            }
-            return null;
-        }
-
-        private async Task<List<QuickType.DmChatGroup>> GetUsersDmList()
-        {
-            try
-            {
-                return QuickType.DmChatGroup.FromJsonList(await httpClient.GetStringAsync("users/@me/channels"));
-            }
-            catch (Exception exc)
-            {
-                ShowErrorAndExit(exc.Message);
-            }
-            return null;
-        }
-
-        private async Task<QuickType.OnlyIDExtract> GetUserIDByAuthID()
-        {
-            try
-            {
-                AddLogLine("Getting current user...");
-                return QuickType.OnlyIDExtract.FromJson(await httpClient.GetStringAsync("users/@me"));
-            }
-            catch (Exception exc)
-            {
-                ShowErrorAndExit(exc.Message);
-            }
-            return null;
-        }
-
-        private async Task<Search_Result_Struct> GetMessagesByUserInChannelByOffset(string channelId, string userId, UInt64 offset, bool isGuild)
-        {
-
-            string targetRestUrl = (isGuild ? "guilds" : "channels");
-            targetRestUrl += $"/{channelId}/messages/search?author_id={userId}";
-            targetRestUrl += (offset != 0) ? $"&offset={offset}" : "";
-            string responseJson;
             while (true)
             {
-                try
+                var response = await httpClient.SendAsync(request);
+
+                if (response.IsSuccessStatusCode)
                 {
-                    responseJson = await httpClient.GetStringAsync(targetRestUrl);
-                    break;
+                    return response;
                 }
-                catch (Exception exc)
+                else if ((int)response.StatusCode == 429)
                 {
-                    AddLogLine("Failed! Error:" + exc.Message);
+                    //UInt32 rateLimitResetTime = UInt32.Parse(response.Headers.GetValues("X-RateLimit-Reset-After").First().Replace(".", ""));
+                    UInt32 rateLimitResetTime = UInt32.Parse(response.Headers.GetValues("Retry-After").First());
+                    await Task.Delay(TimeSpan.FromMilliseconds(rateLimitResetTime));
+                    request = await request.CloneAsync();
                 }
-                await Task.Delay(1000);
-                continue;
+                else
+                {
+                    throw new HttpRequestException();
+                }
             }
+        }
+        private async Task<string> HttpGetStringAndWaitRatelimit(Uri uri) => await (await HttpRequestAndWaitRatelimit(new HttpRequestMessage(HttpMethod.Get, uri))).Content.ReadAsStringAsync();
+        private async Task<string> HttpGetStringAndWaitRatelimit(string url) => await HttpGetStringAndWaitRatelimit(new Uri(url));
+        private async Task<List<QuickType.OnlyIDExtract>> GetUsersGuilds() => QuickType.OnlyIDExtract.FromJsonList(await HttpGetStringAndWaitRatelimit(discordApiUrl + "users/@me/guilds"));
+        private async Task<List<QuickType.DmChatGroup>> GetUsersDmList() => QuickType.DmChatGroup.FromJsonList(await HttpGetStringAndWaitRatelimit(discordApiUrl + "users/@me/channels"));
+        private async Task<QuickType.OnlyIDExtract> GetUserIDByAuthID() => QuickType.OnlyIDExtract.FromJson(await HttpGetStringAndWaitRatelimit(discordApiUrl + "users/@me"));
 
-            QuickType.SearchResult result = QuickType.SearchResult.FromJson(responseJson);
+        private async Task<DiscordSearchResult> GetMessagesByUserInChannelByOffset(string channelId, string userId, int offset, bool isGuild)
+        {
 
-            var search_result = new Search_Result_Struct
+            string targetRestUrl = "/" + (isGuild ? "guilds" : "channels");
+            targetRestUrl += $"/{channelId}/messages/search?author_id={userId}";
+            targetRestUrl += (offset != 0) ? $"&offset={offset}" : "";
+
+            QuickType.SearchResult result = QuickType.SearchResult.FromJson(await HttpGetStringAndWaitRatelimit(discordApiUrl + targetRestUrl));
+
+            DiscordSearchResult search_result = new DiscordSearchResult
             {
                 TotalResults = result.TotalResults
             };
-
-            foreach (var messageChunk in result.Messages)
-            {
-                foreach (var message in messageChunk)
-                {
-                    if (message.Author.Id == userId && !search_result.messageList.Exists(x => x.Id == message.Id))
-                    {
-                        search_result.messageList.Add(message);
-                    }
-                }
-            }
-
+            search_result.messageList.AddRange(result.Messages.SelectMany(messageChunk => messageChunk.Where(message => message.Author.Id == userId).Select(message => message)).DistinctBy(x => x.Id));
             return search_result;
         }
 
-        private async Task<Search_Result_Struct> GetAllMessagesByUserInChannel(string channelId, string userId, bool isGuild, bool onlyNormalMessages)
+        private async Task<DiscordSearchResult> GetAllMessagesByUserInChannel(string channelId, string userId, bool isGuild, bool onlyNormalMessages)
         {
-            var returnValueResults = new Search_Result_Struct();
+            var returnValueResults = new DiscordSearchResult();
 
-            UInt64 currentOffset = 0;
+            int currentOffset = 0;
 
             while (currentOffset <= 5000)
             {
@@ -163,14 +122,8 @@ namespace Discord_Delete_Messages
                     break;
                 }
 
-                currentOffset += (UInt64)currentMessageCount;
-                foreach (var message in currentSearchResults.messageList)
-                {
-                    if (!returnValueResults.messageList.Exists(x => x.Id == message.Id))
-                    {
-                        returnValueResults.messageList.Add(message);
-                    }
-                }
+                currentOffset += currentMessageCount;
+                returnValueResults.messageList.AddRange(currentSearchResults.messageList);
             }
 
             if (onlyNormalMessages)
@@ -178,200 +131,180 @@ namespace Discord_Delete_Messages
                 returnValueResults.messageList = returnValueResults.messageList.Where(x => x.Type == 0).ToList();
             }
 
+            //We have to be sure that there are no duplicates
+            returnValueResults.messageList = returnValueResults.messageList.DistinctBy(x => x.Id).ToList();
+
+            returnValueResults.TotalResults = returnValueResults.messageList.Count;
+
             return returnValueResults;
         }
 
-        private async Task DeleteMessagesFromMessageList(string userId, List<QuickType.Message> messageList)
+        private async Task DeleteMessagesFromMessageList(string userId, List<QuickType.Message> messageList, Action<long> messageDeleteCallback = null)
         {
-            try
+            long deletedCount = 0;
+
+            messageList = messageList.Where(x => x.Author.Id == userId).ToList();
+            foreach (var message in messageList)
             {
-                messageList = messageList.Where(x => x.Type == 0 && x.Author.Id == userId).ToList();
-                foreach (var message in messageList)
+                try
                 {
-                    while (true)
+                    using (var request = new HttpRequestMessage
                     {
-                        AddLogLine("Removing " + message.Id);
-                        try
-                        {
-                            HttpRequestMessage request = new HttpRequestMessage
-                            {
-                                Method = HttpMethod.Delete,
-                                RequestUri = new Uri(httpClient.BaseAddress.ToString() + $"channels/{message.ChannelId}/messages/{message.Id}")
-                            };
-                            var response = await httpClient.SendAsync(request);
+                        Method = HttpMethod.Delete,
+                        RequestUri = new Uri(discordApiUrl + $"channels/{message.ChannelId}/messages/{message.Id}")
+                    })
+                    {
 
-                            if (response.StatusCode == HttpStatusCode.NoContent || response.StatusCode == HttpStatusCode.OK)
-                            {
-                                AddLogLine("Deleted a message! " + message.Id);
-                                deletedCount++;
-                                break;
-                            }
-                        }
-                        catch (Exception exc)
-                        {
-                            AddLogLine("Failed! Error:" + exc.Message);
-                        }
-                        await Task.Delay(1000);
+                        var response = await HttpRequestAndWaitRatelimit(request);
                     }
-                }
 
-                AddLogLine("Finished!");
-            }
-            catch (Exception exc)
-            {
-                ShowErrorAndExit(exc.Message);
+                    AddLogLine("Deleted a message! " + message.Id);
+
+                    messageDeleteCallback?.Invoke(++deletedCount);
+                }
+                catch (Exception exc)
+                {
+                    AddLogLine("Failed deleting a message! Error:" + exc.Message);
+                }
             }
         }
 
-        private async Task DeleteMessagesFromMultipleChannels(string[] channelIDs, string userId, bool updateOutput)
+        private async Task DeleteMessagesFromMultipleChannels(string[] channelIDs, string userId)
         {
+            var channelList = new List<Channel_Struct>();
+            foreach (string channelID in channelIDs)
+            {
+                //TODO: add feature to delete in DM channel by user ID
+
+                Channel_Struct channel = new Channel_Struct
+                {
+                    isGuild = channelID.StartsWith("G", true, null),
+                    channelID = channelID.ToUpper().Replace("G", "")
+                };
+
+                if (!string.IsNullOrWhiteSpace(channel.channelID))
+                {
+                    channelList.Add(channel);
+                }
+            }
+
+            //Remove duplicates
+            channelList = channelList.Distinct().ToList();
+
+            outputRTBox.Text = "Downloading data... Please wait.";
+            AddLogLine(outputRTBox.Text);
+
+            List<Task> taskList = new List<Task>();
+            long totalMessageCount = 0, deletedCount = 0;
+            foreach (Channel_Struct channel in channelList)
+            {
+                var messageList = await GetAllMessagesByUserInChannel(channel.channelID, userId, channel.isGuild, true);
+                totalMessageCount += messageList.TotalResults;
+                taskList.Add(Task.Run(() => DeleteMessagesFromMessageList(userId, messageList.messageList, new Action<long>((long _deletedCount) =>
+                {
+                    deletedCount++;
+                    //We must access the controls from UI thread so we invoke this lambda from the UI thread
+                    this.Invoke(new Action(() => outputRTBox.Text = $"{taskList.Count(x => x.IsCompleted)} / {taskList.Count} : {deletedCount} / {totalMessageCount}"));
+                }))));
+            }
+
+            await Task.WhenAll(taskList);
+
+            outputRTBox.Text = $"Deleted {deletedCount} message(s) from {taskList.Count} channel(s).";
+            AddLogLine(outputRTBox.Text);
+        }
+
+        private async Task<string> GetUserIDAndSetAuthorizationHeader()
+        {
+            string authID = authID_TextBox.Text.Replace(" ", "").Replace("\"", "");
+            if (string.IsNullOrWhiteSpace(authID))
+            {
+                MessageBox.Show("Please fill AuthID!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                throw new Exception();
+            }
+            httpClient.DefaultRequestHeaders.Remove("Authorization");
+            httpClient.DefaultRequestHeaders.Add("Authorization", authID);
+            outputRTBox.Text = "Downloading information about the current user...";
+            AddLogLine(outputRTBox.Text);
+            string userID;
             try
             {
-                if (updateOutput)
+                if ((userID = (await GetUserIDByAuthID()).Id) == null)
                 {
-                    outputRTBox.Text = "Downloading data... Please wait.";
+                    throw new Exception();
                 }
-
-                deletedCount = 0;
-                long totalMessageCount = 0;
-                List<Task> taskList = new List<Task>();
-                var channelList = new List<Channel_Struct>();
-                foreach (string channelID in channelIDs)
-                {
-                    //TODO: add feature to delete in DM channel by user ID
-
-                    Channel_Struct channel = new Channel_Struct
-                    {
-                        isGuild = channelID.StartsWith("G", true, null),
-                        channelID = channelID.ToUpper().Replace("G", "")
-                    };
-
-                    if (!string.IsNullOrWhiteSpace(channel.channelID) && !channelList.Contains(channel))
-                    {
-                        channelList.Add(channel);
-                    }
-                }
-
-                foreach (Channel_Struct channel in channelList)
-                {
-                    var messageList = (await GetAllMessagesByUserInChannel(channel.channelID, userId, channel.isGuild, true)).messageList;
-                    totalMessageCount += messageList.Count;
-                    taskList.Add(Task.Run(() => DeleteMessagesFromMessageList(userId, messageList)));
-                }
-
-                var whenAllTask = Task.WhenAll(taskList);
-                do
-                {
-                    if (updateOutput)
-                    {
-                        int completed = taskList.Where(x => x.IsCompleted).Count();
-                        outputRTBox.Text = $"{completed} / {taskList.Count} : {deletedCount} / {totalMessageCount}";
-                    }
-                    await Task.Delay(100);
-                }
-                while (!whenAllTask.IsCompleted);
             }
             catch (Exception exc)
             {
-                ShowErrorAndExit(exc.Message);
+                MessageBox.Show("Make sure AuthID is correct!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                throw exc;
             }
+
+            return userID;
         }
 
         private async void startButton_Click(object sender, EventArgs e)
         {
+            FreezeUI();
+            string userID;
             try
             {
-                FreezeUI();
-                string authID = authID_TextBox.Text.Replace(" ", "").Replace("\"", "");
-                if (string.IsNullOrWhiteSpace(authID))
-                {
-                    MessageBox.Show("Please fill AuthID!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-                httpClient.DefaultRequestHeaders.Remove("Authorization");
-                httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", authID);
+                userID = await GetUserIDAndSetAuthorizationHeader();
+            }
+            catch { UnfreezeUI(); return; }
+            string[] channelIds = channelIDsRTBox.Text.Replace(" ", "").Split(',');
 
-                string userID = (await GetUserIDByAuthID()).Id;
-                if (userID == null)
-                {
-                    MessageBox.Show("Make sure AuthID is correct!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                string[] channelIds = channelIDsRTBox.Text.Replace(" ", "").Split(',');
-
-                await DeleteMessagesFromMultipleChannels(channelIds, userID, true);
+            try
+            {
+                await DeleteMessagesFromMultipleChannels(channelIds, userID);
             }
             catch (Exception exc)
             {
                 ShowErrorAndExit(exc.Message);
             }
             UnfreezeUI();
-        }
-
-        private void helpButton_Click(object sender, EventArgs e)
-        {
-            MessageBox.Show("If there are multiple channel IDs, you can seperate them by using \",\"(comma)." + "\n" +
-                "Add \"G\" in front of guild IDs and put them in \"Channel ID(s)\" textbox too." + "\n" +
-                "NUKE button deletes all messages from DMs or guilds according to the checkboxes selected." + "\n" +
-                "P.S. Guild means Discord server.");
         }
 
         private async void nukeButton_Click(object sender, EventArgs e)
         {
+            FreezeUI();
+            bool nukeDMS = nuke_DMS_CheckBox.Checked;
+            bool nukeGUILDS = nuke_GUILDS_CheckBox.Checked;
+
+            string userID;
             try
             {
-                FreezeUI();
-                bool nukeDMS = nuke_DMS_CheckBox.Checked;
-                bool nukeGUILDS = nuke_GUILDS_CheckBox.Checked;
+                userID = await GetUserIDAndSetAuthorizationHeader();
+            }
+            catch { UnfreezeUI(); return; }
 
-                string authID = authID_TextBox.Text.Replace(" ", "").Replace("\"", "");
-                if (string.IsNullOrWhiteSpace(authID))
-                {
-                    MessageBox.Show("Please fill AuthID!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-                httpClient.DefaultRequestHeaders.Remove("Authorization");
-                httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", authID);
+            if (!nukeDMS && !nukeGUILDS)
+            {
+                MessageBox.Show("Please select at least one of the checkboxes to nuke!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                UnfreezeUI(); return;
+            }
 
-                string userID = (await GetUserIDByAuthID()).Id;
-                if (userID == null)
-                {
-                    MessageBox.Show("Make sure AuthID is correct!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
+            if (MessageBox.Show("This operation will delete all messages in "
+                + (nukeDMS ? "DM(s)" : "") + (nukeGUILDS && nukeDMS ? " and from " : "") + (nukeGUILDS ? "GUILD(s)" : "") + ". " +
+                "Are you sure you want to continue?", "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
+            {
+                UnfreezeUI(); return;
+            }
 
-                if (!nukeDMS && !nukeGUILDS)
-                {
-                    MessageBox.Show("Select atleast one checkbox to nuke!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
+            var channelIds = new List<string>();
 
-                if (MessageBox.Show("This operation will delete all messages in "
-                    + (nukeDMS ? "DM(s)" : "") + (nukeGUILDS && nukeDMS ? " and from " : "") + (nukeGUILDS ? "GUILD(s)" : "") + ". " +
-                    "Are you sure you want to continue?", "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
-                {
-                    return;
-                }
+            if (nukeDMS)
+            {
+                channelIds.AddRange((await GetUsersDmList()).Select(dmChat => dmChat.Id));
+            }
+            if (nukeGUILDS)
+            {
+                channelIds.AddRange((await GetUsersGuilds()).Select(onlyGUILD => "G" + onlyGUILD.Id));
+            }
 
-                var channelIds = new List<string>();
-
-                if (nukeDMS)
-                {
-                    foreach (QuickType.DmChatGroup dmChat in await GetUsersDmList())
-                    {
-                        channelIds.Add(dmChat.Id);
-                    }
-                }
-                if (nukeGUILDS)
-                {
-                    foreach (QuickType.OnlyIDExtract onlyGUILD in await GetUsersGuilds())
-                    {
-                        channelIds.Add("G" + onlyGUILD.Id);
-                    }
-                }
-
-                await DeleteMessagesFromMultipleChannels(channelIds.ToArray(), userID, true);
+            try
+            {
+                await DeleteMessagesFromMultipleChannels(channelIds.ToArray(), userID);
             }
             catch (Exception exc)
             {
@@ -380,25 +313,33 @@ namespace Discord_Delete_Messages
             UnfreezeUI();
         }
 
+        private void helpButton_Click(object sender, EventArgs e) =>
+            MessageBox.Show("If there are multiple channel IDs, you can seperate them by using \",\"(comma)." + "\n" +
+                "Add \"G\" in front of guild IDs and put them in \"Channel ID(s)\" textbox too." + "\n" +
+                "NUKE button deletes all messages from DMs or guilds according to the checkboxes selected." + "\n" +
+                "P.S. Guild means Discord server.");
+
         private void FreezeUI()
         {
+            authID_TextBox.Enabled = false;
             startButton.Enabled = false;
             nukeButton.Enabled = false;
             nuke_DMS_CheckBox.Enabled = false;
             nuke_GUILDS_CheckBox.Enabled = false;
             channelIDsRTBox.Enabled = false;
-            this.UseWaitCursor = true;
+            UseWaitCursor = true;
             Application.DoEvents();
         }
 
         private void UnfreezeUI()
         {
+            authID_TextBox.Enabled = true;
             nuke_DMS_CheckBox.Enabled = true;
             nuke_GUILDS_CheckBox.Enabled = true;
             startButton.Enabled = true;
             nukeButton.Enabled = true;
             channelIDsRTBox.Enabled = true;
-            this.UseWaitCursor = false;
+            UseWaitCursor = false;
             Application.DoEvents();
         }
 
@@ -406,6 +347,73 @@ namespace Discord_Delete_Messages
         {
             MessageBox.Show("Made by https://github.com/SnakePin." + Environment.NewLine + "Version: " + ProductVersion);
             //TODO: show about form here
+        }
+    }
+
+    public static class Extensions
+    {
+        public static async Task<HttpRequestMessage> CloneAsync(this HttpRequestMessage request)
+        {
+            var clone = new HttpRequestMessage(request.Method, request.RequestUri)
+            {
+                Content = await request.Content.CloneAsync().ConfigureAwait(false),
+                Version = request.Version
+            };
+            foreach (KeyValuePair<string, object> prop in request.Properties)
+            {
+                clone.Properties.Add(prop);
+            }
+            foreach (KeyValuePair<string, IEnumerable<string>> header in request.Headers)
+            {
+                clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
+
+            return clone;
+        }
+
+        public static async Task<HttpContent> CloneAsync(this HttpContent content)
+        {
+            if (content == null) return null;
+
+            var ms = new MemoryStream();
+            await content.CopyToAsync(ms).ConfigureAwait(false);
+            ms.Position = 0;
+
+            var clone = new StreamContent(ms);
+            foreach (KeyValuePair<string, IEnumerable<string>> header in content.Headers)
+            {
+                clone.Headers.Add(header.Key, header.Value);
+            }
+            return clone;
+        }
+        public static IEnumerable<T> DistinctBy<T, TKey>(this IEnumerable<T> items, Func<T, TKey> property)
+        {
+            GeneralPropertyComparer<T, TKey> comparer = new GeneralPropertyComparer<T, TKey>(property);
+            return items.Distinct(comparer);
+        }
+        internal class GeneralPropertyComparer<T, TKey> : IEqualityComparer<T>
+        {
+            private Func<T, TKey> expr { get; set; }
+            internal GeneralPropertyComparer(Func<T, TKey> expr)
+            {
+                this.expr = expr;
+            }
+            public bool Equals(T left, T right)
+            {
+                var leftProp = expr.Invoke(left);
+                var rightProp = expr.Invoke(right);
+                if (leftProp == null && rightProp == null)
+                    return true;
+                else if (leftProp == null ^ rightProp == null)
+                    return false;
+                else
+                    return leftProp.Equals(rightProp);
+            }
+            public int GetHashCode(T obj)
+            {
+                var prop = expr.Invoke(obj);
+                return (prop == null) ? 0 : prop.GetHashCode();
+            }
         }
     }
 }

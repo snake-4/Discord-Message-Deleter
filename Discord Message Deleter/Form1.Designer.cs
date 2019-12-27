@@ -158,6 +158,7 @@
             this.Controls.Add(this.outputRTBox);
             this.Controls.Add(this.startButton);
             this.Controls.Add(this.authID_TextBox);
+            this.MaximizeBox = false;
             this.Name = "Form1";
             this.Text = "Discord Message Deleter by SnakePin";
             this.ResumeLayout(false);
