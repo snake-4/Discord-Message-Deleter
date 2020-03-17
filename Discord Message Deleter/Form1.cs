@@ -101,7 +101,7 @@ namespace Discord_Delete_Messages
             {
                 TotalResults = result.TotalResults
             };
-            search_result.messageList.AddRange(result.Messages.SelectMany(messageChunk => messageChunk.Where(message => message.Author.Id == userId).Select(message => message)).DistinctBy(x => x.Id));
+            search_result.messageList.AddRange(result.Messages.SelectMany(messageChunk => messageChunk.Where(message => message.Author.Id == userId)).DistinctBy(x => x.Id));
             return search_result;
         }
 
@@ -252,11 +252,33 @@ namespace Discord_Delete_Messages
                 userID = await GetUserIDAndSetAuthorizationHeader();
             }
             catch { UnfreezeUI(); return; }
-            string[] channelIds = channelIDsRTBox.Text.Replace(" ", "").Split(',');
+            List<string> channelIds = channelIDsRTBox.Text.Replace(" ", "").Split(',').ToList();
+
+            var dmList = await GetUsersDmList();
+            foreach (var currentUserID in channelIds.Where(x => x.StartsWith("U")).Select(y => y.Substring(1)).ToList())
+            {
+                string channelID = dmList.FirstOrDefault(dm =>
+                {
+                    if (dm.Recipients == null || dm.Recipients.Count() != 1)
+                    {
+                        return false;
+                    }
+                    return dm.Recipients.First().Id == currentUserID;
+                })?.Id;
+
+                if (channelID == null)
+                {
+                    continue;
+                }
+
+                channelIds.Add(channelID);
+            }
+
+            channelIds.RemoveAll(x => x.StartsWith("U"));
 
             try
             {
-                await DeleteMessagesFromMultipleChannels(channelIds, userID);
+                await DeleteMessagesFromMultipleChannels(channelIds.ToArray(), userID);
             }
             catch (Exception exc)
             {
@@ -299,7 +321,7 @@ namespace Discord_Delete_Messages
             }
             if (nukeGUILDS)
             {
-                channelIds.AddRange((await GetUsersGuilds()).Select(onlyGUILD => "G" + onlyGUILD.Id));
+                channelIds.AddRange((await GetUsersGuilds()).Select(guildInstance => "G" + guildInstance.Id));
             }
 
             try
@@ -315,7 +337,8 @@ namespace Discord_Delete_Messages
 
         private void helpButton_Click(object sender, EventArgs e) =>
             MessageBox.Show("If there are multiple channel IDs, you can seperate them by using \",\"(comma)." + "\n" +
-                "Add \"G\" in front of guild IDs and put them in \"Channel ID(s)\" textbox too." + "\n" +
+                "Add \"G\" in front of guild IDs." + "\n" +
+                "Add \"U\" in front of user IDs." + "\n" +
                 "NUKE button deletes all messages from DMs or guilds according to the checkboxes selected." + "\n" +
                 "P.S. Guild means Discord server.");
 
