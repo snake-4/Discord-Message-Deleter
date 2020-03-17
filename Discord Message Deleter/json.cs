@@ -41,6 +41,9 @@
 
             [JsonProperty("icon")]
             public string Icon { get; set; }
+
+            [JsonProperty("recipients")]
+            public List<OnlyIDExtract> Recipients { get; set; }
         }
 
         public partial class DmChatGroup
