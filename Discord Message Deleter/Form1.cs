@@ -95,12 +95,18 @@ namespace Discord_Delete_Messages
             targetRestUrl += $"/{channelId}/messages/search?author_id={userId}";
             targetRestUrl += (offset != 0) ? $"&offset={offset}" : "";
 
-            QuickType.SearchResult result = QuickType.SearchResult.FromJson(await HttpGetStringAndWaitRatelimit(discordApiUrl + targetRestUrl));
+            QuickType.SearchResult result = null;
+
+            while (result == null || result.Messages == null)
+            {
+                result = QuickType.SearchResult.FromJson(await HttpGetStringAndWaitRatelimit(discordApiUrl + targetRestUrl));
+            }
 
             DiscordSearchResult search_result = new DiscordSearchResult
             {
                 TotalResults = result.TotalResults
             };
+
             search_result.messageList.AddRange(result.Messages.SelectMany(messageChunk => messageChunk.Where(message => message.Author.Id == userId)).DistinctBy(x => x.Id));
             return search_result;
         }
