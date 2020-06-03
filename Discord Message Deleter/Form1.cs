@@ -78,7 +78,17 @@ namespace Discord_Delete_Messages
                 }
                 else
                 {
-                    throw new HttpRequestException();
+                    string excStr = "Exception in HttpRequestAndWaitRatelimit: response.StatusCode is " + response.StatusCode;
+                    if (response.Headers.TryGetValues("X-RateLimit-Remaining", out IEnumerable<string> XRateLimitRemainingValues))
+                    {
+                        excStr += " X-RateLimit-Remaining is " + XRateLimitRemainingValues.First();
+                    }
+                    string body = null;
+                    if ((body = await response.Content.ReadAsStringAsync()) != null)
+                    {
+                        excStr += " response.Content is " + body;
+                    }
+                    throw new Exception(excStr);
                 }
             }
         }
