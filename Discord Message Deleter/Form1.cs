@@ -55,7 +55,7 @@ namespace Discord_Delete_Messages
 
         static readonly HttpClient httpClient = new HttpClient();
 
-        const string discordApiUrl = "https://discordapp.com/api/v6/";
+        const string discordApiUrl = "https://discordapp.com/api/v8/";
 
         private async Task<HttpResponseMessage> HttpRequestAndWaitRatelimit(HttpRequestMessage request)
         {
