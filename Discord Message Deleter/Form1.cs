@@ -22,10 +22,9 @@ namespace Discord_Delete_Messages
 
         private void AddLogLine(string text) => Console.WriteLine(text);
 
-        private void ShowErrorAndExit(string exceptionMessage, [CallerMemberName] string caller = "")
+        private void ShowErrorAndExit(string exceptionMessage, [CallerMemberName] string caller = "", [CallerLineNumber] int sourceLineNumber = 0)
         {
-            MessageBox.Show("A problem occured in " + caller + "\n\nError:\n" + exceptionMessage
-                + "\n\nPlease report this to developer! Exiting now.",
+            MessageBox.Show($"A problem occured in {caller} at line {sourceLineNumber}\n\nError:\n{exceptionMessage}\n\nPlease report this to the developer.",
                 "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
             Environment.Exit(1);
         }
