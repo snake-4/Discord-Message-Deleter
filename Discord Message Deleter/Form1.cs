@@ -143,7 +143,7 @@ namespace Discord_Delete_Messages
 
             if (onlyNormalMessages)
             {
-                returnValueResults.messageList = returnValueResults.messageList.Where(x => x.Type == 0).ToList();
+                returnValueResults.messageList = returnValueResults.messageList.Where(x => x.Type == 0 || x.Type == 19 || x.Type == 20).ToList();
             }
 
             //We have to be sure that there are no duplicates
