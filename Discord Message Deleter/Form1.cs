@@ -62,7 +62,17 @@ namespace Discord_Delete_Messages
 
             while (true)
             {
-                var response = await httpClient.SendAsync(request);
+                HttpResponseMessage response;
+                try
+                {
+                    response = await httpClient.SendAsync(request);
+                    request = await request.CloneAsync();
+                }
+                catch (HttpRequestException)
+                {
+                    //Will try again on connection errors
+                    continue;
+                }
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -70,10 +80,9 @@ namespace Discord_Delete_Messages
                 }
                 else if ((int)response.StatusCode == 429)
                 {
-                    //UInt32 rateLimitResetTime = UInt32.Parse(response.Headers.GetValues("X-RateLimit-Reset-After").First().Replace(".", ""));
-                    UInt32 rateLimitResetTime = UInt32.Parse(response.Headers.GetValues("Retry-After").First());
+                    //int rateLimitResetTime = int.Parse(response.Headers.GetValues("X-RateLimit-Reset-After").First().Replace(".", ""));
+                    int rateLimitResetTime = int.Parse(response.Headers.GetValues("Retry-After").First());
                     await Task.Delay(TimeSpan.FromMilliseconds(rateLimitResetTime));
-                    request = await request.CloneAsync();
                 }
                 else
                 {
