@@ -1,24 +1,23 @@
-﻿namespace Discord_Delete_Messages
+﻿using System;
+using System.Collections.Generic;
+using System.Globalization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+
+namespace Discord_Delete_Messages
 {
     namespace QuickType
     {
-        using System;
-        using System.Collections.Generic;
-
-        using System.Globalization;
-        using Newtonsoft.Json;
-        using Newtonsoft.Json.Converters;
-
-        public partial class OnlyIDExtract
+        public partial class JsonGetIDField
         {
             [JsonProperty("id")]
             public string Id { get; set; }
         }
 
-        public partial class OnlyIDExtract
+        public partial class JsonGetIDField
         {
-            public static List<OnlyIDExtract> FromJsonList(string json) => JsonConvert.DeserializeObject<List<OnlyIDExtract>>(json, QuickType.Converter.Settings);
-            public static OnlyIDExtract FromJson(string json) => JsonConvert.DeserializeObject<OnlyIDExtract>(json, QuickType.Converter.Settings);
+            public static List<JsonGetIDField> FromJsonList(string json) => JsonConvert.DeserializeObject<List<JsonGetIDField>>(json, QuickType.Converter.Settings);
+            public static JsonGetIDField FromJson(string json) => JsonConvert.DeserializeObject<JsonGetIDField>(json, QuickType.Converter.Settings);
 
         }
 
@@ -43,7 +42,7 @@
             public string Icon { get; set; }
 
             [JsonProperty("recipients")]
-            public List<OnlyIDExtract> Recipients { get; set; }
+            public List<JsonGetIDField> Recipients { get; set; }
         }
 
         public partial class DmChatGroup
@@ -52,10 +51,10 @@
             public static List<DmChatGroup> FromJson(string json) => JsonConvert.DeserializeObject<List<DmChatGroup>>(json, QuickType.Converter.Settings);
         }
 
-        public partial class SearchResult
+        public partial class SearchRequestResponse
         {
             [JsonProperty("total_results")]
-            public long TotalResults { get; set; }
+            public int TotalResults { get; set; }
 
             [JsonProperty("messages")]
             public List<List<Message>> Messages { get; set; }
@@ -91,9 +90,9 @@
             public string Id { get; set; }
         }
 
-        public partial class SearchResult
+        public partial class SearchRequestResponse
         {
-            public static SearchResult FromJson(string json) => JsonConvert.DeserializeObject<SearchResult>(json, QuickType.Converter.Settings);
+            public static SearchRequestResponse FromJson(string json) => JsonConvert.DeserializeObject<SearchRequestResponse>(json, QuickType.Converter.Settings);
         }
 
         internal static class Converter
