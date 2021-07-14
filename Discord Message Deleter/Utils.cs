@@ -72,6 +72,35 @@ namespace Discord_Delete_Messages
             return await HttpGetStringAndWaitRatelimit(httpClient, new Uri(uri), rateLimitCallback, ct);
         }
 
+        //https://stackoverflow.com/a/3822913
+        public static void CopyFilesRecursively(string sourcePath, string targetPath)
+        {
+            //Now Create all of the directories
+            foreach (string dirPath in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories))
+            {
+                Directory.CreateDirectory(dirPath.Replace(sourcePath, targetPath));
+            }
+
+            //Copy all the files & Replaces any files with the same name
+            foreach (string newPath in Directory.GetFiles(sourcePath, "*.*", SearchOption.AllDirectories))
+            {
+                File.Copy(newPath, newPath.Replace(sourcePath, targetPath), true);
+            }
+        }
+
+        public static string GetTemporaryDirectory()
+        {
+            string tempDirectory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(tempDirectory);
+            return tempDirectory;
+        }
+
+        public static string ChromiumLevelDBReadString(LevelDB.DB database, string url, string keyName)
+        {
+            var rawKeyName = $"_{url}\0\u0001{keyName}";
+            return database.Get(rawKeyName).Replace("\u0001", "").TrimStart(new char[] { '"' }).TrimEnd(new char[] { '"' });
+        }
+
         public static async Task<HttpRequestMessage> CloneAsync(this HttpRequestMessage request)
         {
             var clone = new HttpRequestMessage(request.Method, request.RequestUri)
