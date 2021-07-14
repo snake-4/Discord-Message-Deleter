@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace Discord_Delete_Messages
+namespace DiscordMessageDeleter
 {
     static class Program
     {

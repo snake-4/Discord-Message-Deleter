@@ -9,7 +9,7 @@ using System.IO;
 
 #pragma warning disable IDE0063 // Disable "Use simple 'using' statement" because we don't want to use C# 8.0 yet.
 
-namespace Discord_Delete_Messages
+namespace DiscordMessageDeleter
 {
     public partial class MainForm : Form
     {

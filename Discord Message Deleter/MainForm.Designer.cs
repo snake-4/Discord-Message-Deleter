@@ -1,4 +1,4 @@
-﻿namespace Discord_Delete_Messages
+﻿namespace DiscordMessageDeleter
 {
     partial class MainForm
     {
