@@ -40,15 +40,15 @@
             this.nuke_DMS_CheckBox = new System.Windows.Forms.CheckBox();
             this.aboutButton = new System.Windows.Forms.Button();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
-            this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
-            this.toolStripProgressBar = new System.Windows.Forms.ToolStripProgressBar();
             this.toolStripStatusLabel2 = new System.Windows.Forms.ToolStripStatusLabel();
             this.toolStripStatusText = new System.Windows.Forms.ToolStripStatusLabel();
+            this.toolStripStatusLabel3 = new System.Windows.Forms.ToolStripStatusLabel();
+            this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
+            this.toolStripProgressBar = new System.Windows.Forms.ToolStripProgressBar();
             this.label3 = new System.Windows.Forms.Label();
             this.label4 = new System.Windows.Forms.Label();
             this.searchedChannelsLabel = new System.Windows.Forms.Label();
             this.foundMessagesLabel = new System.Windows.Forms.Label();
-            this.toolStripStatusLabel3 = new System.Windows.Forms.ToolStripStatusLabel();
             this.statusStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -56,7 +56,7 @@
             // 
             this.authID_TextBox.Location = new System.Drawing.Point(61, 12);
             this.authID_TextBox.Name = "authID_TextBox";
-            this.authID_TextBox.Size = new System.Drawing.Size(399, 20);
+            this.authID_TextBox.Size = new System.Drawing.Size(397, 20);
             this.authID_TextBox.TabIndex = 0;
             // 
             // startButton
@@ -159,18 +159,6 @@
             this.statusStrip1.TabIndex = 12;
             this.statusStrip1.Text = "statusStrip1";
             // 
-            // toolStripStatusLabel1
-            // 
-            this.toolStripStatusLabel1.Name = "toolStripStatusLabel1";
-            this.toolStripStatusLabel1.Size = new System.Drawing.Size(55, 17);
-            this.toolStripStatusLabel1.Text = "Progress:";
-            // 
-            // toolStripProgressBar
-            // 
-            this.toolStripProgressBar.Maximum = 1000;
-            this.toolStripProgressBar.Name = "toolStripProgressBar";
-            this.toolStripProgressBar.Size = new System.Drawing.Size(200, 16);
-            // 
             // toolStripStatusLabel2
             // 
             this.toolStripStatusLabel2.Name = "toolStripStatusLabel2";
@@ -182,6 +170,24 @@
             this.toolStripStatusText.Name = "toolStripStatusText";
             this.toolStripStatusText.Size = new System.Drawing.Size(39, 17);
             this.toolStripStatusText.Text = "Ready";
+            // 
+            // toolStripStatusLabel3
+            // 
+            this.toolStripStatusLabel3.Name = "toolStripStatusLabel3";
+            this.toolStripStatusLabel3.Size = new System.Drawing.Size(119, 17);
+            this.toolStripStatusLabel3.Spring = true;
+            // 
+            // toolStripStatusLabel1
+            // 
+            this.toolStripStatusLabel1.Name = "toolStripStatusLabel1";
+            this.toolStripStatusLabel1.Size = new System.Drawing.Size(55, 17);
+            this.toolStripStatusLabel1.Text = "Progress:";
+            // 
+            // toolStripProgressBar
+            // 
+            this.toolStripProgressBar.Maximum = 1000;
+            this.toolStripProgressBar.Name = "toolStripProgressBar";
+            this.toolStripProgressBar.Size = new System.Drawing.Size(200, 16);
             // 
             // label3
             // 
@@ -219,13 +225,7 @@
             this.foundMessagesLabel.TabIndex = 16;
             this.foundMessagesLabel.Text = "N/A";
             // 
-            // toolStripStatusLabel3
-            // 
-            this.toolStripStatusLabel3.Name = "toolStripStatusLabel3";
-            this.toolStripStatusLabel3.Size = new System.Drawing.Size(119, 17);
-            this.toolStripStatusLabel3.Spring = true;
-            // 
-            // Form1
+            // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -248,8 +248,9 @@
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MaximizeBox = false;
-            this.Name = "Form1";
+            this.Name = "MainForm";
             this.Text = "Discord Message Deleter by SnakePin";
+            this.Load += new System.EventHandler(this.MainForm_Load);
             this.statusStrip1.ResumeLayout(false);
             this.statusStrip1.PerformLayout();
             this.ResumeLayout(false);

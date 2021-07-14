@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
+using System.IO;
 
 #pragma warning disable IDE0063 // Disable "Use simple 'using' statement" because we don't want to use C# 8.0 yet.
 
@@ -12,32 +13,70 @@ namespace Discord_Delete_Messages
 {
     public partial class MainForm : Form
     {
+        DiscordAPI discordAPI = new DiscordAPI();
+        CancellationTokenSource cts = new CancellationTokenSource();
+
         public MainForm()
         {
             InitializeComponent();
         }
 
-        DiscordAPI discordAPI = new DiscordAPI();
-        CancellationTokenSource cts = new CancellationTokenSource();
+        private void MainForm_Load(object sender, EventArgs e)
+        {
+            var authID = TryGetAuthIDFromDiscordStorage();
+            if (!string.IsNullOrWhiteSpace(authID))
+            {
+                authID_TextBox.Text = authID;
+            }
+        }
+
+        private static string TryGetAuthIDFromDiscordStorage()
+        {
+            string tmpDir = null;
+            string returnValue = null;
+            try
+            {
+                tmpDir = Utils.GetTemporaryDirectory();
+
+                var discordLocalStoragePath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"discord\Local Storage\leveldb");
+
+                Utils.CopyFilesRecursively(discordLocalStoragePath, tmpDir);
+                using (var db = new LevelDB.DB(new LevelDB.Options
+                {
+                    CreateIfMissing = false
+                }, tmpDir))
+                {
+                    returnValue = Utils.ChromiumLevelDBReadString(db, "https://discordapp.com", "token");
+                }
+            }
+            catch { } //Well, too bad but at least we've tried
+
+            if (tmpDir != null)
+            {
+                try { Directory.Delete(tmpDir, true); } catch { }
+            }
+
+            return returnValue;
+        }
 
         private async Task handle_startButton_Click()
         {
             try
             {
+                cts = new CancellationTokenSource();
                 searchedChannelsLabel.Text = "N/A";
                 foundMessagesLabel.Text = "N/A";
                 foundMessagesLabel.Text = "N/A";
                 toolStripProgressBar.Value = 0;
-                cts = new CancellationTokenSource();
 
                 toolStripStatusText.Text = "Fetching information...";
 
                 string authID = authID_TextBox.Text.Replace(" ", "").Replace("\"", "");
                 if (string.IsNullOrWhiteSpace(authID))
                 {
-                    throw new Exception("AuthID is not correct!");
+                    throw new Exception("Please fill the auth ID text box!");
                 }
-
                 await discordAPI.SetAuthID(authID);
 
                 List<string> channelIds = channelIDsRTBox.Text.Replace(" ", "").Split(',').ToList();
