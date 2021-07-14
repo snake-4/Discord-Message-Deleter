@@ -5,7 +5,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Discord_Delete_Messages
+namespace DiscordMessageDeleter
 {
     class DiscordAPI
     {

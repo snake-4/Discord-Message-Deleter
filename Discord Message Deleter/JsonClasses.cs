@@ -4,7 +4,7 @@ using System.Globalization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
-namespace Discord_Delete_Messages
+namespace DiscordMessageDeleter
 {
     namespace QuickType
     {
