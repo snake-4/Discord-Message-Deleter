@@ -97,8 +97,20 @@ namespace DiscordMessageDeleter
 
         public static string ChromiumLevelDBReadString(LevelDB.DB database, string url, string keyName)
         {
+            foreach(var a in database)
+            {
+                var str = System.Text.Encoding.ASCII.GetString(a.Key);
+                Console.WriteLine(str);
+            }
+
             var rawKeyName = $"_{url}\0\u0001{keyName}";
-            return database.Get(rawKeyName).Replace("\u0001", "").TrimStart(new char[] { '"' }).TrimEnd(new char[] { '"' });
+            var rawValue = database.Get(rawKeyName);
+
+            if(rawValue == null)
+            {
+                throw new KeyNotFoundException();
+            }
+            return rawValue.Replace("\u0001", "").TrimStart(new char[] { '"' }).TrimEnd(new char[] { '"' });
         }
 
         public static async Task<HttpRequestMessage> CloneAsync(this HttpRequestMessage request)

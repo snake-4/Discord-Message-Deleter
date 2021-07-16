@@ -47,7 +47,14 @@ namespace DiscordMessageDeleter
                     CreateIfMissing = false
                 }, tmpDir))
                 {
-                    returnValue = Utils.ChromiumLevelDBReadString(db, "https://discordapp.com", "token");
+                    try
+                    {
+                        returnValue = Utils.ChromiumLevelDBReadString(db, "https://discordapp.com", "token");
+                    }
+                    catch (KeyNotFoundException)
+                    {
+                        returnValue = Utils.ChromiumLevelDBReadString(db, "https://discord.com", "token");
+                    }
                 }
             }
             catch { } //Well, too bad but at least we've tried
