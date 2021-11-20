@@ -249,8 +249,7 @@
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MaximizeBox = false;
             this.Name = "MainForm";
-            this.Text = "Discord Message Deleter by SnakePin";
-            this.Load += new System.EventHandler(this.MainForm_Load);
+            this.Text = "Discord Message Deleter";
             this.statusStrip1.ResumeLayout(false);
             this.statusStrip1.PerformLayout();
             this.ResumeLayout(false);
