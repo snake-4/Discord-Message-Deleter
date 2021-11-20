@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,6 +43,11 @@ namespace DiscordMessageDeleter
                     rateLimitCallback?.Invoke(rateLimitResetTime);
                     await Task.Delay(TimeSpan.FromSeconds(rateLimitResetTime), ct);
                 }
+                else if(response.StatusCode == HttpStatusCode.InternalServerError)
+                {
+                    //Try again on 500 errors
+                    continue;
+                }
                 else
                 {
                     string excStr = "Unexpected response in HttpRequestAndWaitRatelimit: response.StatusCode is " + response.StatusCode;
@@ -49,8 +55,8 @@ namespace DiscordMessageDeleter
                     {
                         excStr += " X-RateLimit-Remaining is " + XRateLimitRemainingValues.First();
                     }
-                    string body = null;
-                    if ((body = await response.Content.ReadAsStringAsync()) != null)
+                    string body = await response.Content.ReadAsStringAsync();
+                    if (body != null)
                     {
                         excStr += " response.Content is " + body;
                     }
@@ -70,47 +76,6 @@ namespace DiscordMessageDeleter
             RateLimitCallbackDelegate rateLimitCallback = null, CancellationToken ct = default)
         {
             return await HttpGetStringAndWaitRatelimit(httpClient, new Uri(uri), rateLimitCallback, ct);
-        }
-
-        //https://stackoverflow.com/a/3822913
-        public static void CopyFilesRecursively(string sourcePath, string targetPath)
-        {
-            //Now Create all of the directories
-            foreach (string dirPath in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories))
-            {
-                Directory.CreateDirectory(dirPath.Replace(sourcePath, targetPath));
-            }
-
-            //Copy all the files & Replaces any files with the same name
-            foreach (string newPath in Directory.GetFiles(sourcePath, "*.*", SearchOption.AllDirectories))
-            {
-                File.Copy(newPath, newPath.Replace(sourcePath, targetPath), true);
-            }
-        }
-
-        public static string GetTemporaryDirectory()
-        {
-            string tempDirectory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-            Directory.CreateDirectory(tempDirectory);
-            return tempDirectory;
-        }
-
-        public static string ChromiumLevelDBReadString(LevelDB.DB database, string url, string keyName)
-        {
-            foreach(var a in database)
-            {
-                var str = System.Text.Encoding.ASCII.GetString(a.Key);
-                Console.WriteLine(str);
-            }
-
-            var rawKeyName = $"_{url}\0\u0001{keyName}";
-            var rawValue = database.Get(rawKeyName);
-
-            if(rawValue == null)
-            {
-                throw new KeyNotFoundException();
-            }
-            return rawValue.Replace("\u0001", "").TrimStart(new char[] { '"' }).TrimEnd(new char[] { '"' });
         }
 
         public static async Task<HttpRequestMessage> CloneAsync(this HttpRequestMessage request)

@@ -3,9 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Linq;
-using System.Net.Http;
 using System.Threading;
-using System.IO;
 
 #pragma warning disable IDE0063 // Disable "Use simple 'using' statement" because we don't want to use C# 8.0 yet.
 
@@ -19,52 +17,6 @@ namespace DiscordMessageDeleter
         public MainForm()
         {
             InitializeComponent();
-        }
-
-        private void MainForm_Load(object sender, EventArgs e)
-        {
-            var authID = TryGetAuthIDFromDiscordStorage();
-            if (!string.IsNullOrWhiteSpace(authID))
-            {
-                authID_TextBox.Text = authID;
-            }
-        }
-
-        private static string TryGetAuthIDFromDiscordStorage()
-        {
-            string tmpDir = null;
-            string returnValue = null;
-            try
-            {
-                tmpDir = Utils.GetTemporaryDirectory();
-
-                var discordLocalStoragePath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"discord\Local Storage\leveldb");
-
-                Utils.CopyFilesRecursively(discordLocalStoragePath, tmpDir);
-                using (var db = new LevelDB.DB(new LevelDB.Options
-                {
-                    CreateIfMissing = false
-                }, tmpDir))
-                {
-                    try
-                    {
-                        returnValue = Utils.ChromiumLevelDBReadString(db, "https://discordapp.com", "token");
-                    }
-                    catch (KeyNotFoundException)
-                    {
-                        returnValue = Utils.ChromiumLevelDBReadString(db, "https://discord.com", "token");
-                    }
-                }
-            }
-            catch { } //Well, too bad but at least we've tried
-
-            if (tmpDir != null)
-            {
-                try { Directory.Delete(tmpDir, true); } catch { }
-            }
-
-            return returnValue;
         }
 
         private async Task handle_startButton_Click()
