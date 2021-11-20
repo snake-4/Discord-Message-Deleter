@@ -131,6 +131,7 @@ namespace DiscordMessageDeleter
             messageList = messageList.Where(x => x.Author.Id == lastUserID).ToList();
             foreach (var message in messageList)
             {
+                ct.ThrowIfCancellationRequested();
                 try
                 {
                     using (var request = new HttpRequestMessage
