@@ -89,7 +89,7 @@ namespace DiscordMessageDeleter
                     channelID = x.ToUpper().Replace("G", "")
                 }).ToArray(), (int totalChannelCount, int searchedChannelCount, int foundMessageCount, int deletedMessageCount) =>
                 {
-                    this.Invoke(new Action(() =>
+                    this.InvokeIfRequired(() =>
                     {
                         foundMessagesLabel.Text = $"{deletedMessageCount} / {foundMessageCount}";
                         searchedChannelsLabel.Text = $"{searchedChannelCount} / {totalChannelCount}";
@@ -105,11 +105,14 @@ namespace DiscordMessageDeleter
                         {
                             toolStripStatusText.Text = "Searching messages...";
                         }
-                    }));
+                    });
                 },
                 (int rateLimitSeconds) =>
                 {
-                    toolStripStatusText.Text = $"Ratelimited for {rateLimitSeconds}s!";
+                    this.InvokeIfRequired(() =>
+                    {
+                        toolStripStatusText.Text = $"Ratelimited for {rateLimitSeconds}s!";
+                    });
                 }, cts.Token);
 
                 toolStripStatusText.Text = "Finished!";

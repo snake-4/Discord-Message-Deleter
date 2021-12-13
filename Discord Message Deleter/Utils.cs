@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace DiscordMessageDeleter
 {
@@ -43,7 +45,7 @@ namespace DiscordMessageDeleter
                     rateLimitCallback?.Invoke(rateLimitResetTime);
                     await Task.Delay(TimeSpan.FromSeconds(rateLimitResetTime), ct);
                 }
-                else if(response.StatusCode == HttpStatusCode.InternalServerError)
+                else if (response.StatusCode == HttpStatusCode.InternalServerError)
                 {
                     //Try again on 500 errors
                     continue;
@@ -95,6 +97,19 @@ namespace DiscordMessageDeleter
             }
 
             return clone;
+        }
+
+        public static void InvokeIfRequired(this ISynchronizeInvoke obj, MethodInvoker action)
+        {
+            if (obj.InvokeRequired)
+            {
+                var args = new object[0];
+                obj.Invoke(action, args);
+            }
+            else
+            {
+                action();
+            }
         }
 
         public static async Task<HttpContent> CloneAsync(this HttpContent content)
