@@ -9,27 +9,27 @@ namespace DiscordMessageDeleter
 {
     class DiscordAPI
     {
-        public class DiscordMessageChannel
+        public class ChannelAndGuild
         {
-            public DiscordMessageChannel()
+            public ChannelAndGuild(string ID, bool isGuildID)
             {
-                isGuild = false;
-                channelID = string.Empty;
+                this.IsGuildID = isGuildID;
+                this.ID = ID;
             }
 
-            public bool isGuild;
-            public string channelID;
+            public bool IsGuildID;
+            public string ID;
         }
         public class DiscordSearchResult
         {
             public DiscordSearchResult()
             {
-                messageList = new List<QuickType.Message>();
-                TotalResults = 0;
+                MessageList = new List<QuickType.Message>();
+                ResultCount = 0;
             }
 
-            public List<QuickType.Message> messageList;
-            public int TotalResults;
+            public List<QuickType.Message> MessageList;
+            public int ResultCount;
         }
 
         private const string discordApiUrl = "https://discordapp.com/api/v9/";
@@ -50,12 +50,12 @@ namespace DiscordMessageDeleter
             return QuickType.JsonGetIDField.FromJson(await Utils.HttpGetStringAndWaitRatelimit(httpClient, discordApiUrl + "users/@me", rateLimitCallback, ct));
         }
 
-        private async Task<DiscordSearchResult> InternalMakeDiscordSearchRequest(string channelId, string userId, int offset, bool isGuild,
+        private async Task<DiscordSearchResult> InternalMakeDiscordSearchRequest(ChannelAndGuild channel, string userId, int offset,
             Utils.RateLimitCallbackDelegate rateLimitCallback = null, CancellationToken ct = default)
         {
 
-            string targetRestUrl = "/" + (isGuild ? "guilds" : "channels");
-            targetRestUrl += $"/{channelId}/messages/search?author_id={userId}";
+            string targetRestUrl = "/" + (channel.IsGuildID ? "guilds" : "channels");
+            targetRestUrl += $"/{channel.ID}/messages/search?author_id={userId}";
             targetRestUrl += (offset != 0) ? $"&offset={offset}" : "";
 
             QuickType.SearchRequestResponse result = null;
@@ -67,22 +67,22 @@ namespace DiscordMessageDeleter
 
             DiscordSearchResult search_result = new DiscordSearchResult
             {
-                TotalResults = result.TotalResults
+                ResultCount = result.TotalResults
             };
 
-            search_result.messageList.AddRange(result.Messages.SelectMany(messageChunk => messageChunk
+            search_result.MessageList.AddRange(result.Messages.SelectMany(messageChunk => messageChunk
                 .Where(message => message.Author.Id == userId)).DistinctBy(x => x.Id));
 
             return search_result;
         }
 
-        public async Task<List<QuickType.JsonGetIDField>> GetUsersGuilds(Utils.RateLimitCallbackDelegate rateLimitCallback = null, CancellationToken ct = default)
+        public async Task<List<QuickType.JsonGetIDField>> GetUserGuilds(Utils.RateLimitCallbackDelegate rateLimitCallback = null, CancellationToken ct = default)
         {
             return QuickType.JsonGetIDField.FromJsonList(
                 await Utils.HttpGetStringAndWaitRatelimit(httpClient, discordApiUrl + "users/@me/guilds", rateLimitCallback, ct));
         }
 
-        public async Task<List<QuickType.DmChatGroup>> GetUsersDmList(Utils.RateLimitCallbackDelegate rateLimitCallback = null, CancellationToken ct = default)
+        public async Task<List<QuickType.DmChatGroup>> GetUserDMList(Utils.RateLimitCallbackDelegate rateLimitCallback = null, CancellationToken ct = default)
         {
             return QuickType.DmChatGroup.FromJsonList(
                 await Utils.HttpGetStringAndWaitRatelimit(httpClient, discordApiUrl + "users/@me/channels", rateLimitCallback, ct));
@@ -90,7 +90,7 @@ namespace DiscordMessageDeleter
 
         public delegate void SearchProgressCallbackDelegate(int foundMessageCount);
 
-        public async Task<DiscordSearchResult> GetAllMessagesByUserInChannel(string channelId, string userId, bool isGuild, bool onlyNormalMessages,
+        public async Task<DiscordSearchResult> GetAllMessagesByUserInChannel(ChannelAndGuild channel, string userId, bool onlyNormalMessages,
             Utils.RateLimitCallbackDelegate rateLimitCallback = null, SearchProgressCallbackDelegate progressCallback = null, CancellationToken ct = default)
         {
             var combinedSearchResult = new DiscordSearchResult();
@@ -98,9 +98,9 @@ namespace DiscordMessageDeleter
 
             while (currentOffset <= 5000)
             {
-                var currentSearchResults = await InternalMakeDiscordSearchRequest(channelId, userId, currentOffset, isGuild, rateLimitCallback, ct);
+                var currentSearchResults = await InternalMakeDiscordSearchRequest(channel, userId, currentOffset, rateLimitCallback, ct);
 
-                int currentMessageCount = currentSearchResults.messageList.Count;
+                int currentMessageCount = currentSearchResults.MessageList.Count;
                 if (currentMessageCount == 0)
                 {
                     break;
@@ -108,17 +108,17 @@ namespace DiscordMessageDeleter
                 currentOffset += currentMessageCount;
                 progressCallback?.Invoke(currentOffset);
 
-                combinedSearchResult.messageList.AddRange(currentSearchResults.messageList);
+                combinedSearchResult.MessageList.AddRange(currentSearchResults.MessageList);
             }
 
             if (onlyNormalMessages)
             {
-                combinedSearchResult.messageList = combinedSearchResult.messageList.Where(x => x.Type == 0 || x.Type == 19 || x.Type == 20).ToList();
+                combinedSearchResult.MessageList = combinedSearchResult.MessageList.Where(x => x.Type == 0 || x.Type == 19 || x.Type == 20).ToList();
             }
 
             //We have to be sure that there are no duplicates
-            combinedSearchResult.messageList = combinedSearchResult.messageList.DistinctBy(x => x.Id).ToList();
-            combinedSearchResult.TotalResults = combinedSearchResult.messageList.Count;
+            combinedSearchResult.MessageList = combinedSearchResult.MessageList.DistinctBy(x => x.Id).ToList();
+            combinedSearchResult.ResultCount = combinedSearchResult.MessageList.Count;
 
             return combinedSearchResult;
         }
@@ -150,23 +150,23 @@ namespace DiscordMessageDeleter
 
         public delegate void DeleteProgressCallbackDelegate(int totalChannelCount, int searchedChannelCount, int foundMessageCount, int deletedMessageCount);
 
-        public async Task DeleteMessagesFromMultipleChannels(DiscordMessageChannel[] channelList,
+        public async Task DeleteMessagesFromMultipleChannels(ChannelAndGuild[] channelList,
             DeleteProgressCallbackDelegate progressCallback = null,
             Utils.RateLimitCallbackDelegate rateLimitCallback = null, CancellationToken ct = default)
         {
             List<Task> taskList = new List<Task>();
             int totalMessageCount = 0, deletedCount = 0;
-            foreach (DiscordMessageChannel channel in channelList)
+            foreach (ChannelAndGuild channel in channelList)
             {
-                var messageList = await GetAllMessagesByUserInChannel(channel.channelID, lastUserID, channel.isGuild, true,
+                var messageList = await GetAllMessagesByUserInChannel(channel, lastUserID, true,
                     rateLimitCallback, (int foundMessages) =>
                     {
                         progressCallback?.Invoke(channelList.Length, taskList.Count, totalMessageCount + foundMessages, deletedCount);
                     }, ct);
 
-                totalMessageCount += messageList.TotalResults;
+                totalMessageCount += messageList.ResultCount;
 
-                taskList.Add(Task.Run(() => DeleteMessagesFromMessageList(messageList.messageList, new Action<int>((int _deletedCount) =>
+                taskList.Add(Task.Run(() => DeleteMessagesFromMessageList(messageList.MessageList, new Action<int>((int _deletedCount) =>
                 {
                     deletedCount++;
                     progressCallback?.Invoke(channelList.Length, taskList.Count, totalMessageCount, deletedCount);

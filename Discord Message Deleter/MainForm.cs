@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 
 #pragma warning disable IDE0063 // Disable "Use simple 'using' statement" because we don't want to use C# 8.0 yet.
 
@@ -29,70 +29,27 @@ namespace DiscordMessageDeleter
                 foundMessagesLabel.Text = "N/A";
                 toolStripProgressBar.Value = 0;
 
-                toolStripStatusText.Text = "Fetching information...";
-
-                string authID = authID_TextBox.Text.Replace(" ", "").Replace("\"", "");
-                if (string.IsNullOrWhiteSpace(authID))
-                {
-                    throw new Exception("Please fill the auth ID text box!");
-                }
-                await discordAPI.SetAuthID(authID);
-
-                List<string> channelIds = channelIDsRTBox.Text.Replace(" ", "").Split(',').ToList();
-
                 bool nukeDMS = nuke_DMS_CheckBox.Checked;
                 bool nukeGUILDS = nuke_GUILDS_CheckBox.Checked;
-                if (nukeDMS || nukeGUILDS)
+
+                string warningMessage = $"This operation will delete all messages in " +
+                    $"{(nukeDMS ? "DM(s)" : "")}{(nukeGUILDS && nukeDMS ? " and " : "")}{(nukeGUILDS ? "guild(s)" : "")}. Are you sure you want to continue?";
+                if ((nukeDMS || nukeGUILDS) && MessageBox.Show(warningMessage, "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
                 {
-                    if (MessageBox.Show("This operation will delete all messages in "
-                    + (nukeDMS ? "DM(s)" : "") + (nukeGUILDS && nukeDMS ? " and from " : "") + (nukeGUILDS ? "GUILD(s)" : "") + ". " +
-                    "Are you sure you want to continue?", "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
-                    {
-                        toolStripStatusText.Text = "Cancelled!";
-                        return;
-                    }
-                    if (nukeDMS)
-                    {
-                        channelIds.AddRange((await discordAPI.GetUsersDmList(null, cts.Token)).Select(x => x.Id));
-                    }
-                    if (nukeGUILDS)
-                    {
-                        channelIds.AddRange((await discordAPI.GetUsersGuilds(null, cts.Token)).Select(x => "G" + x.Id));
-                    }
+                    toolStripStatusText.Text = "Cancelled!";
+                    return;
                 }
 
-                var dmList = await discordAPI.GetUsersDmList();
-                foreach (var currentUserID in channelIds.Where(x => x.StartsWith("U")).Select(y => y.Substring(1)).ToList())
-                {
-                    string channelID = dmList.FirstOrDefault(dm =>
-                    {
-                        if (dm.Recipients == null || dm.Recipients.Count() != 1)
-                        {
-                            return false;
-                        }
-                        return dm.Recipients.First().Id == currentUserID;
-                    })?.Id;
+                toolStripStatusText.Text = "Fetching information...";
+                await UpdateAuthIDFromUI();
 
-                    if (channelID == null)
-                    {
-                        continue;
-                    }
+                var finalIDList = await BuildIDListFromUI(nukeDMS, nukeGUILDS);
 
-                    channelIds.Add(channelID);
-                }
-                channelIds.RemoveAll(x => x.StartsWith("U") || string.IsNullOrWhiteSpace(x));
-                channelIds = channelIds.Distinct().ToList();
-
-                await discordAPI.DeleteMessagesFromMultipleChannels(channelIds.Select(x => new DiscordAPI.DiscordMessageChannel
-                {
-                    isGuild = x.StartsWith("G", true, null),
-                    channelID = x.ToUpper().Replace("G", "")
-                }).ToArray(), (int totalChannelCount, int searchedChannelCount, int foundMessageCount, int deletedMessageCount) =>
-                {
-                    this.InvokeIfRequired(() =>
+                await discordAPI.DeleteMessagesFromMultipleChannels(finalIDList.ToArray(),
+                    (int allChannelCount, int searchedChannelCount, int foundMessageCount, int deletedMessageCount) => this.InvokeIfRequired(() =>
                     {
                         foundMessagesLabel.Text = $"{deletedMessageCount} / {foundMessageCount}";
-                        searchedChannelsLabel.Text = $"{searchedChannelCount} / {totalChannelCount}";
+                        searchedChannelsLabel.Text = $"{searchedChannelCount} / {allChannelCount}";
 
                         //This callback will also be called when new messages are found, so the deleted message count can be zero
                         //so we have to prevent the divide by zero here
@@ -105,28 +62,64 @@ namespace DiscordMessageDeleter
                         {
                             toolStripStatusText.Text = "Searching messages...";
                         }
-                    });
-                },
-                (int rateLimitSeconds) =>
-                {
-                    this.InvokeIfRequired(() =>
-                    {
-                        toolStripStatusText.Text = $"Ratelimited for {rateLimitSeconds}s!";
-                    });
-                }, cts.Token);
+                    }),
+                    (int rlSeconds) => this.InvokeIfRequired(() => toolStripStatusText.Text = $"Ratelimited for {rlSeconds}s!")
+                    , cts.Token);
 
                 toolStripStatusText.Text = "Finished!";
             }
-            catch (TaskCanceledException)
-            {
-                MessageBox.Show("Operation cancelled.");
-                toolStripStatusText.Text = "Cancelled!";
-            }
             catch (Exception exc)
             {
-                MessageBox.Show(exc.Message, "Encountered an error!");
-                toolStripStatusText.Text = "Errored!";
+                if (exc is TaskCanceledException || exc is OperationCanceledException)
+                {
+                    MessageBox.Show("Operation cancelled.");
+                    toolStripStatusText.Text = "Cancelled!";
+                }
+                else
+                {
+                    MessageBox.Show(exc.Message, "Encountered an error!");
+                    toolStripStatusText.Text = "Errored!";
+                }
             }
+        }
+
+        private async Task<IEnumerable<DiscordAPI.ChannelAndGuild>> BuildIDListFromUI(bool EraseAllDMs, bool EraseAllGuilds)
+        {
+            var idTextboxInput = channelIDsRTBox.Text.Replace(" ", "").Split(',');
+            var userIDList = idTextboxInput.Where(x => x.StartsWith("U")).Select(x => x.Substring(1)).Distinct();
+            var guildIDList = idTextboxInput.Where(x => x.StartsWith("G")).Select(x => x.Substring(1)).Distinct();
+            var channelIDList = idTextboxInput.Where(x => x.All(char.IsDigit)).Distinct();
+
+            var allDMsList = await discordAPI.GetUserDMList(null, cts.Token);
+            var allGuildsList = await discordAPI.GetUserGuilds(null, cts.Token);
+            var finalIDList = new List<DiscordAPI.ChannelAndGuild>();
+
+            if (EraseAllGuilds)
+                finalIDList.AddRange(allGuildsList.Select(x => new DiscordAPI.ChannelAndGuild(x.Id, true)));
+            else
+                finalIDList.AddRange(guildIDList.Select(x => new DiscordAPI.ChannelAndGuild(x, true)));
+
+            if (EraseAllDMs)
+                finalIDList.AddRange(allDMsList.Select(x => new DiscordAPI.ChannelAndGuild(x.Id, false)));
+            else
+                finalIDList.AddRange(allDMsList.Where((QuickType.DmChatGroup dm) =>
+                {
+                    return dm.Recipients != null && dm.Recipients.Count() == 1 && userIDList.Contains(dm.Recipients.First().Id);
+                }).Select(x => new DiscordAPI.ChannelAndGuild(x.Id, false)));
+
+            finalIDList.AddRange(channelIDList.Select(x => new DiscordAPI.ChannelAndGuild(x, false)));
+
+            return finalIDList.Distinct();
+        }
+
+        private async Task UpdateAuthIDFromUI()
+        {
+            string authID = authID_TextBox.Text.Replace(" ", "").Replace("\"", "");
+            if (string.IsNullOrWhiteSpace(authID))
+            {
+                throw new Exception("Please fill the Auth ID text box!");
+            }
+            await discordAPI.SetAuthID(authID);
         }
 
         private void stopButton_Click(object sender, EventArgs e)
@@ -142,11 +135,9 @@ namespace DiscordMessageDeleter
         }
 
         private void helpButton_Click(object sender, EventArgs e) =>
-            MessageBox.Show("If there are multiple channel IDs, you can seperate them by using \",\"(comma)." + "\n" +
+            MessageBox.Show("If there are multiple channel IDs, you can seperate them using a comma(\",\")." + "\n" +
                 "Add \"G\" in front of guild IDs." + "\n" +
-                "Add \"U\" in front of user IDs." + "\n" +
-                "NUKE button deletes all messages from DMs or guilds according to the checkboxes selected." + "\n" +
-                "P.S. Guild means Discord server.");
+                "Add \"U\" in front of user IDs." + "\n");
 
         private void FreezeUI()
         {

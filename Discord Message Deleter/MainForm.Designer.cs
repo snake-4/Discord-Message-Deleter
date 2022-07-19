@@ -120,9 +120,9 @@
             this.nuke_GUILDS_CheckBox.AutoSize = true;
             this.nuke_GUILDS_CheckBox.Location = new System.Drawing.Point(357, 136);
             this.nuke_GUILDS_CheckBox.Name = "nuke_GUILDS_CheckBox";
-            this.nuke_GUILDS_CheckBox.Size = new System.Drawing.Size(117, 17);
+            this.nuke_GUILDS_CheckBox.Size = new System.Drawing.Size(106, 17);
             this.nuke_GUILDS_CheckBox.TabIndex = 9;
-            this.nuke_GUILDS_CheckBox.Text = "Delete all GUILD(s)";
+            this.nuke_GUILDS_CheckBox.Text = "Delete all guild(s)";
             this.nuke_GUILDS_CheckBox.UseVisualStyleBackColor = true;
             // 
             // nuke_DMS_CheckBox
