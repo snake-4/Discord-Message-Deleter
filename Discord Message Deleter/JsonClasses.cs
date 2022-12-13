@@ -21,6 +21,18 @@ namespace DiscordMessageDeleter
 
         }
 
+        public partial class APIError
+        {
+            [JsonProperty("code")]
+            public long Code { get; set; }
+
+            /*[JsonProperty("errors")]
+            public Errors Errors { get; set; }*/
+
+            [JsonProperty("message")]
+            public string Message { get; set; }
+        }
+
         public partial class DmChatGroup
         {
             [JsonProperty("last_message_id")]

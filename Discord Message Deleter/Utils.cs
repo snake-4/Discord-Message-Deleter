@@ -33,11 +33,7 @@ namespace DiscordMessageDeleter
                     continue;
                 }
 
-                if (response.IsSuccessStatusCode)
-                {
-                    return response;
-                }
-                else if ((int)response.StatusCode == 429)
+                if ((int)response.StatusCode == 429)
                 {
                     //int rateLimitResetTime = int.Parse(response.Headers.GetValues("X-RateLimit-Reset-After").First().Replace(".", ""));
                     int rateLimitResetTime = int.Parse(response.Headers.GetValues("Retry-After").First());
@@ -45,24 +41,14 @@ namespace DiscordMessageDeleter
                     rateLimitCallback?.Invoke(rateLimitResetTime);
                     await Task.Delay(TimeSpan.FromSeconds(rateLimitResetTime), ct);
                 }
-                else if (response.StatusCode == HttpStatusCode.InternalServerError)
+                else if ((int)response.StatusCode >= 500 && (int)response.StatusCode < 600)
                 {
                     //Try again on 500 errors
                     continue;
                 }
                 else
                 {
-                    string excStr = "Unexpected response in HttpRequestAndWaitRatelimit: response.StatusCode is " + response.StatusCode;
-                    if (response.Headers.TryGetValues("X-RateLimit-Remaining", out IEnumerable<string> XRateLimitRemainingValues))
-                    {
-                        excStr += " X-RateLimit-Remaining is " + XRateLimitRemainingValues.First();
-                    }
-                    string body = await response.Content.ReadAsStringAsync();
-                    if (body != null)
-                    {
-                        excStr += " response.Content is " + body;
-                    }
-                    throw new Exception(excStr);
+                    return response;
                 }
             }
         }

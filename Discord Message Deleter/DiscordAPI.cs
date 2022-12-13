@@ -1,7 +1,11 @@
-﻿using System;
+﻿using DiscordMessageDeleter.QuickType;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -88,6 +92,20 @@ namespace DiscordMessageDeleter
                 await Utils.HttpGetStringAndWaitRatelimit(httpClient, discordApiUrl + "users/@me/channels", rateLimitCallback, ct));
         }
 
+        public async Task<HttpResponseMessage> UnarchiveThreadChannel(string channelId, Utils.RateLimitCallbackDelegate rateLimitCallback = null, CancellationToken ct = default)
+        {
+            using (var request = new HttpRequestMessage
+            {
+                Method = new HttpMethod("PATCH"),
+                RequestUri = new Uri(discordApiUrl + $"channels/{channelId}"),
+                Content = new StringContent("{\"archived\":false}")
+            })
+            {
+                request.Content.Headers.ContentType = new MediaTypeWithQualityHeaderValue("application/json");
+                return await Utils.HttpRequestAndWaitRatelimit(httpClient, request, rateLimitCallback, ct);
+            }
+        }
+
         public delegate void SearchProgressCallbackDelegate(int foundMessageCount);
 
         public async Task<DiscordSearchResult> GetAllMessagesByUserInChannel(ChannelAndGuild channel, string userId, bool onlyNormalMessages,
@@ -141,6 +159,15 @@ namespace DiscordMessageDeleter
                     })
                     {
                         var response = await Utils.HttpRequestAndWaitRatelimit(httpClient, request, rateLimitCallback, ct);
+                        if (response.StatusCode == HttpStatusCode.BadRequest)
+                        {
+                            var error = JsonConvert.DeserializeObject<APIError>(await response.Content.ReadAsStringAsync());
+                            if(error.Code == 50083) // Tried to perform an operation on an archived thread, such as editing a message or adding a user to the thread
+                            {
+                                await UnarchiveThreadChannel(message.ChannelId);
+                            }
+                            await Utils.HttpRequestAndWaitRatelimit(httpClient, request, rateLimitCallback, ct);
+                        }
                     }
                     messageDeleteCallback?.Invoke(++deletedCount);
                 }
