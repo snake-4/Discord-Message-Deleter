@@ -163,8 +163,7 @@ namespace DiscordMessageDeleter
 
         private void aboutButton_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Made by https://github.com/SnakePin." + Environment.NewLine + "Version: " + ProductVersion);
-            //TODO: show about form here
+            MessageBox.Show("Made by https://github.com/SnakePin." + Environment.NewLine + "Version: GIT");
         }
     }
 }
