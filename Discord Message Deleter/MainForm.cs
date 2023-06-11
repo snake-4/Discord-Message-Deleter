@@ -163,7 +163,7 @@ namespace DiscordMessageDeleter
 
         private void aboutButton_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Made by https://github.com/SnakePin." + Environment.NewLine + "Version: GIT");
+            MessageBox.Show("Version: GIT");
         }
     }
 }

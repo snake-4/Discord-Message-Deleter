@@ -4,11 +4,11 @@
     Just a program that deletes your messages in Discord.
     <br />
     <br />
-    <a href="https://github.com/SnakePin/Discord-Message-Deleter/issues">Report Bug</a>
+    <a href="https://github.com/snake-4/Discord-Message-Deleter/issues">Report Bug</a>
     ·
-    <a href="https://github.com/SnakePin/Discord-Message-Deleter/issues">Request Feature</a>
+    <a href="https://github.com/snake-4/Discord-Message-Deleter/issues">Request Feature</a>
     ·
-    <a href="https://github.com/SnakePin/Discord-Message-Deleter/releases">Latest Release</a>
+    <a href="https://github.com/snake-4/Discord-Message-Deleter/releases">Latest Release</a>
   </p>
 </div>
 
@@ -29,7 +29,7 @@ You'll need the following to be able to run this program:
 <!-- USAGE  -->
 ## Usage
 
-All you have to do is download the <a href="https://github.com/SnakePin/Discord-Message-Deleter/releases">latest release</a> of the program, unzip the zip file somewhere and run the exe file.
+All you have to do is download the <a href="https://github.com/snake-4/Discord-Message-Deleter/releases">latest release</a> of the program, unzip the zip file somewhere and run the exe file.
 
 You'll get an interface with a text box. Put the IDs of the channels where you want to delete your messages from.
 

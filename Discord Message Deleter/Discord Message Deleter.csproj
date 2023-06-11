@@ -26,10 +26,10 @@
     <UpdatePeriodically>false</UpdatePeriodically>
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
-    <SupportUrl>https://github.com/SnakePin/Discord-Message-Deleter/</SupportUrl>
-    <ErrorReportUrl>https://github.com/SnakePin/Discord-Message-Deleter/</ErrorReportUrl>
+    <SupportUrl></SupportUrl>
+    <ErrorReportUrl></ErrorReportUrl>
     <ProductName>Discord Message Deleter</ProductName>
-    <PublisherName>SnakePin</PublisherName>
+    <PublisherName></PublisherName>
     <ApplicationRevision>1</ApplicationRevision>
     <ApplicationVersion>1.8.0.%2a</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
