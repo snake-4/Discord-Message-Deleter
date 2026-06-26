@@ -5,7 +5,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Discord_Message_Deleter.API;
+namespace DiscordMessageDeleter.API;
 
 public static class Utils
 {

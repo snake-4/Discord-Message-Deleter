@@ -1,4 +1,4 @@
-using Discord_Message_Deleter.API;
+using DiscordMessageDeleter.API;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Discord_Message_Deleter
+namespace DiscordMessageDeleter
 {
     public sealed partial class MainWindow : Window
     {

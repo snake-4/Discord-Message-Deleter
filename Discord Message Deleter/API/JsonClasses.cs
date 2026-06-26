@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Discord_Message_Deleter.API;
+namespace DiscordMessageDeleter.API;
 
 public static class JsonExtensions
 {
