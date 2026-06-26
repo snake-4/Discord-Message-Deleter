@@ -20,233 +20,186 @@ public class DeleteProgress
 
 class DiscordAPI
 {
-    public record SearchLocation(string ID, bool IsGuildID);
+    public record SearchParameters(string AuthorID, string? GuildID = null, string? ChannelID = null);
 
-    /*
-     * This list includes all message types marked as 'true' or 'true*' in the Discord API documentation.
-     * Note: Type 24 (AUTO_MODERATION_ACTION) can only be deleted by members with 'MANAGE_MESSAGES'.
-     */
     public static readonly HashSet<long> DeletableMessageTypes =
     [
-        0,  // DEFAULT
-        6,  // CHANNEL_PINNED_MESSAGE
-        7,  // USER_JOIN
-        8,  // GUILD_BOOST
-        9,  // GUILD_BOOST_TIER_1
-        10, // GUILD_BOOST_TIER_2
-        11, // GUILD_BOOST_TIER_3
-        12, // CHANNEL_FOLLOW_ADD
-        14, // GUILD_DISCOVERY_DISQUALIFIED
-        15, // GUILD_DISCOVERY_REQUALIFIED
-        16, // GUILD_DISCOVERY_GRACE_PERIOD_INITIAL_WARNING
-        17, // GUILD_DISCOVERY_GRACE_PERIOD_FINAL_WARNING
-        18, // THREAD_CREATED
-        19, // REPLY
-        20, // CHAT_INPUT_COMMAND
-        22, // GUILD_INVITE_REMINDER
-        23, // CONTEXT_MENU_COMMAND
-        24, // AUTO_MODERATION_ACTION (Requires MANAGE_MESSAGES)
-        25, // ROLE_SUBSCRIPTION_PURCHASE
-        26, // INTERACTION_PREMIUM_UPSELL
-        27, // STAGE_START
-        28, // STAGE_END
-        29, // STAGE_SPEAKER
-        31, // STAGE_TOPIC
-        32, // GUILD_APPLICATION_PREMIUM_SUBSCRIPTION
-        36, // GUILD_INCIDENT_ALERT_MODE_ENABLED
-        37, // GUILD_INCIDENT_ALERT_MODE_DISABLED
-        38, // GUILD_INCIDENT_REPORT_RAID
-        39, // GUILD_INCIDENT_REPORT_FALSE_ALARM
-        44, // PURCHASE_NOTIFICATION
-        46  // POLL_RESULT
+        0, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 31, 32, 36, 37, 38, 39, 44, 46
     ];
 
-    private const string discordApiUrl = "https://discordapp.com/api/v9/";
-    private readonly HttpClient httpClient = new();
+    private const string ApiUrl = "https://discordapp.com/api/v9/";
+    private readonly HttpClient http = new();
 
-    private async Task<string> GetCurrentUserID(Utils.RateLimitCallbackDelegate? rateLimitCallback = null, CancellationToken ct = default)
+    public async Task ExecuteDeleteOperationAsync(string authID, string userProvidedIDs, bool eraseAllDMs, bool eraseAllGuilds, IProgress<DeleteProgress> progress, CancellationToken ct = default)
     {
-        return (await Utils.HttpGetString(httpClient, discordApiUrl + "users/@me", rateLimitCallback, ct)).ParseAs<JsonGetIDField>().Id;
-    }
+        var state = new DeleteProgress();
+        int localFound = 0, localSearched = 0, localDeleted = 0;
 
-    private async Task SetAuthToken(string token)
-    {
-        httpClient.DefaultRequestHeaders.Remove("Authorization");
-        httpClient.DefaultRequestHeaders.Add("Authorization", token);
-    }
-
-    private async Task<List<JsonGetIDField>> GetUserGuilds(CancellationToken ct = default)
-    {
-        return (await Utils.HttpGetString(httpClient, discordApiUrl + "users/@me/guilds", ct: ct)).ParseAs<List<JsonGetIDField>>();
-    }
-
-    private async Task<List<DmChatGroup>> GetUserDMList(CancellationToken ct = default)
-    {
-        return (await Utils.HttpGetString(httpClient, discordApiUrl + "users/@me/channels", ct: ct)).ParseAs<List<DmChatGroup>>();
-    }
-
-    private async Task<HttpResponseMessage> UnarchiveThreadChannel(string channelId, Utils.RateLimitCallbackDelegate? rateLimitCallback = null, CancellationToken ct = default)
-    {
-        return await Utils.HttpRequest(httpClient, () => new HttpRequestMessage(HttpMethod.Patch, discordApiUrl + $"channels/{channelId}")
+        void UpdateUI(string? msg = null)
         {
-            Content = new StringContent("{\"archived\":false}", System.Text.Encoding.UTF8, "application/json")
-        }, rateLimitCallback, ct);
-    }
-
-    private async Task<List<Message>> GetAllMessagesByUserInChannel(SearchLocation channel, string userId, bool filterDeletableMessages,
-        Utils.RateLimitCallbackDelegate? rateLimitCallback = null, CancellationToken ct = default)
-    {
-        int offset = 0;
-        var ret = new List<Message>();
-
-        // TODO: Can we instead search messages as they are deleted instead of fetching all messages first?
-        while (offset <= 5000)
-        {
-            // TODO: The endpoint is different for guild channels
-            string requestUri = $"{discordApiUrl}{(channel.IsGuildID ? "guilds" : "channels")}/{channel.ID}/messages/search?author_id={userId}{(offset != 0 ? $"&offset={offset}" : "")}";
-            var searchResultChunk = (await Utils.HttpGetString(httpClient, requestUri, rateLimitCallback, ct)).ParseAs<SearchRequestResponse>();
-
-            if (searchResultChunk.Messages.Count == 0)
-                break;
-
-            offset += searchResultChunk.Messages.Count;
-            ret.AddRange(searchResultChunk.Messages.SelectMany(x => x));
+            if (msg != null) state.StatusMessage = msg;
+            state.FoundMessageCount = localFound;
+            state.SearchedChannelCount = localSearched;
+            state.DeletedMessageCount = localDeleted;
+            progress.Report(state);
         }
 
-        if (filterDeletableMessages)
-            return ret.Where(x => DeletableMessageTypes.Contains(x.Type)).DistinctBy(x => x.Id).ToList();
-        else
-            return ret.DistinctBy(x => x.Id).ToList();
+        void RateLimitCb(TimeSpan t) => UpdateUI($"Ratelimited for {t.TotalSeconds:n0}s!");
+
+        UpdateUI("Fetching information...");
+        http.DefaultRequestHeaders.Remove("Authorization");
+        http.DefaultRequestHeaders.Add("Authorization", authID);
+
+        var myIdStr = await Utils.HttpGetString(http, ApiUrl + "users/@me", RateLimitCb, ct);
+        var myId = ParseResponse<User>(myIdStr).Id;
+
+        UpdateUI("Resolving IDs...");
+        // Passed RateLimitCb here since it now makes API calls in a loop
+        var targets = await ResolveTargetsAsync(myId, userProvidedIDs, eraseAllDMs, eraseAllGuilds, RateLimitCb, ct);
+
+        if (targets.Count == 0)
+        {
+            UpdateUI("No valid IDs found to search.");
+            return;
+        }
+
+        state.TotalChannelCount = targets.Count;
+        UpdateUI("Searching messages...");
+
+        var taskList = targets.Select(async target =>
+        {
+            var deletableMsgs = await FetchDeletableMessagesAsync(target, RateLimitCb, ct);
+
+            Interlocked.Add(ref localFound, deletableMsgs.Count);
+            Interlocked.Increment(ref localSearched);
+            UpdateUI();
+
+            await DeleteMessagesAsync(deletableMsgs, RateLimitCb, onMessageDeleted: () =>
+            {
+                Interlocked.Increment(ref localDeleted);
+                UpdateUI("Deleting...");
+            }, ct);
+        });
+
+        await Task.WhenAll(taskList);
+        UpdateUI("Finished!");
     }
 
-    private async Task DeleteMessagesFromMessageList(List<Message> messageList, IProgress<int>? progress = null,
-        Utils.RateLimitCallbackDelegate? rateLimitCallback = null, CancellationToken ct = default)
+    private async Task<HashSet<SearchParameters>> ResolveTargetsAsync(string authorId, string userProvidedIDs, bool eraseAllDMs, bool eraseAllGuilds, Utils.RateLimitCallbackDelegate rateLimitCb, CancellationToken ct)
     {
-        int deletedCount = 0;
-        foreach (var message in messageList)
+        var targets = new HashSet<SearchParameters>();
+
+        // Fetch user's known guilds and DMs
+        var guildsTask = Utils.HttpGetString(http, ApiUrl + "users/@me/guilds", rateLimitCb, ct);
+        var dmsTask = Utils.HttpGetString(http, ApiUrl + "users/@me/channels", rateLimitCb, ct);
+        await Task.WhenAll(guildsTask, dmsTask);
+        var knownGuilds = ParseResponse<List<Guild>>(guildsTask.Result).Select(x => x.Id).ToHashSet();
+        var knownDms = ParseResponse<List<ChannelInfo>>(dmsTask.Result).Select(x => x.Id).ToHashSet();
+
+        // Add all guilds and DMs if requested
+        if (eraseAllGuilds) targets.UnionWith(knownGuilds.Select(g => new SearchParameters(authorId, GuildID: g)));
+        if (eraseAllDMs) targets.UnionWith(knownDms.Select(dm => new SearchParameters(authorId, ChannelID: dm)));
+
+        // Parse user-provided IDs
+        var parsedUserIDs = userProvidedIDs
+            .Split([',', ' ', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => new string(x.Where(char.IsDigit).ToArray()))
+            .Where(x => !string.IsNullOrEmpty(x))
+            .Distinct();
+
+        // Resolve specific IDs
+        foreach (var id in parsedUserIDs)
+        {
+            if (knownGuilds.Contains(id))
+                targets.Add(new SearchParameters(authorId, GuildID: id));
+            else if (knownDms.Contains(id))
+                targets.Add(new SearchParameters(authorId, ChannelID: id));
+            else
+            {
+                try
+                {
+                    // Treat the ID as a channel and confirm if it exists and has a parent guild
+                    var channelStr = await Utils.HttpGetString(http, ApiUrl + $"channels/{id}", rateLimitCb, ct);
+                    var info = ParseResponse<ChannelInfo>(channelStr);
+                    targets.Add(new SearchParameters(authorId, GuildID: info.GuildId, ChannelID: id));
+                }
+                catch { }
+            }
+        }
+
+        return targets;
+    }
+
+    private async Task<List<Message>> FetchDeletableMessagesAsync(SearchParameters target, Utils.RateLimitCallbackDelegate rateLimitCb, CancellationToken ct)
+    {
+        // Determine the endpoint based on whether it's a guild or a channel search
+        string? endpoint = target.GuildID != null ? $"guilds/{target.GuildID}/messages/search" :
+                          target.ChannelID != null ? $"channels/{target.ChannelID}/messages/search" : null;
+        if (endpoint == null) return [];
+
+        // Always search for messages by author but specify channel_id if both guild and channel are specified
+        string query = $"author_id={target.AuthorID}" + (target.GuildID != null && target.ChannelID != null ? $"&channel_id={target.ChannelID}" : "");
+        int offset = 0;
+        var msgs = new List<Message>();
+
+        while (offset <= 5000)
+        {
+            string uri = $"{ApiUrl}{endpoint}?{query}{(offset > 0 ? $"&offset={offset}" : "")}";
+            var chunk = ParseResponse<SearchRequestResponse>(await Utils.HttpGetString(http, uri, rateLimitCb, ct)).Messages;
+
+            if (chunk.Count == 0) break;
+
+            offset += chunk.Count;
+            msgs.AddRange(chunk.SelectMany(x => x));
+        }
+
+        return msgs.Where(x => DeletableMessageTypes.Contains(x.Type)).DistinctBy(x => x.Id).ToList();
+    }
+
+    private async Task DeleteMessagesAsync(List<Message> messages, Utils.RateLimitCallbackDelegate rateLimitCb, Action onMessageDeleted, CancellationToken ct)
+    {
+        foreach (var msg in messages)
         {
             ct.ThrowIfCancellationRequested();
             try
             {
-                using var response = await Utils.HttpRequest(httpClient, () => new HttpRequestMessage
-                {
-                    Method = HttpMethod.Delete,
-                    RequestUri = new Uri(discordApiUrl + $"channels/{message.ChannelId}/messages/{message.Id}")
-                }, rateLimitCallback, ct);
+                HttpRequestMessage MakeReq() => new(HttpMethod.Delete, ApiUrl + $"channels/{msg.ChannelId}/messages/{msg.Id}");
+                using var response = await Utils.HttpRequest(http, MakeReq, rateLimitCb, ct);
+
                 if (response.StatusCode == HttpStatusCode.BadRequest)
                 {
-                    var json = await response.Content.ReadAsStringAsync(ct);
-                    var error = JsonSerializer.Deserialize<APIError>(json);
-                    if (error?.Code == 50083 && !string.IsNullOrEmpty(message.ChannelId)) // Tried to perform an operation on an archived thread
+                    var error = JsonSerializer.Deserialize<APIError>(await response.Content.ReadAsStringAsync(ct));
+
+                    if (error?.Code == 50083 && !string.IsNullOrEmpty(msg.ChannelId))
                     {
-                        await UnarchiveThreadChannel(message.ChannelId, rateLimitCallback, ct);
+                        // Try to unarchive the channel if it's archived
+                        await Utils.HttpRequest(http, () => new HttpRequestMessage(HttpMethod.Patch, ApiUrl + $"channels/{msg.ChannelId}")
+                        {
+                            Content = new StringContent("{\"archived\":false}", System.Text.Encoding.UTF8, "application/json")
+                        }, rateLimitCb, ct);
                     }
-                    await Utils.HttpRequest(httpClient, () => new HttpRequestMessage
-                    {
-                        Method = HttpMethod.Delete,
-                        RequestUri = new Uri(discordApiUrl + $"channels/{message.ChannelId}/messages/{message.Id}")
-                    }, rateLimitCallback, ct);
+
+                    // Retry after unarchiving
+                    await Utils.HttpRequest(http, MakeReq, rateLimitCb, ct);
                 }
-                progress?.Report(++deletedCount);
+
+                onMessageDeleted();
             }
+            catch (OperationCanceledException) { throw; }
             catch { }
         }
     }
 
-    public async Task ExecuteDeleteOperationAsync(string authID, string userProvidedIDs, bool eraseAllDMs, bool eraseAllGuilds, IProgress<DeleteProgress> progress, CancellationToken ct = default)
+    private static T ParseResponse<T>(string json)
     {
-        var progressState = new DeleteProgress();
-        void rateLimitCallback(TimeSpan rateLimitTime)
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+            doc.RootElement.TryGetProperty("code", out _) &&
+            doc.RootElement.TryGetProperty("message", out _))
         {
-            progressState.StatusMessage = $"Ratelimited for {rateLimitTime.TotalSeconds:n0}s!";
-            progress.Report(progressState);
+            var e = JsonSerializer.Deserialize<APIError>(json)!;
+            throw new Exception($"Discord API Error {e.Code}: {e.Message}");
         }
-
-        progressState.StatusMessage = "Fetching information...";
-        progress.Report(progressState);
-
-        await SetAuthToken(authID);
-        var lastUserID = await GetCurrentUserID(rateLimitCallback, ct);
-
-        progressState.StatusMessage = "Resolving IDs...";
-        progress.Report(progressState);
-
-        var finalIDList = await ResolveIDsAsync(userProvidedIDs, eraseAllDMs, eraseAllGuilds, ct);
-        if (finalIDList.Count == 0)
-        {
-            progressState.StatusMessage = "No valid IDs found to search.";
-            progress.Report(progressState);
-            return;
-        }
-
-        progressState.TotalChannelCount = finalIDList.Count;
-        progressState.StatusMessage = "Searching messages...";
-        progress.Report(progressState);
-
-        var taskList = new List<Task>();
-
-        int localFoundMessageCount = 0;
-        int localSearchedChannelCount = 0;
-        int localDeletedMessageCount = 0;
-
-        void reportProgress()
-        {
-            progressState.FoundMessageCount = localFoundMessageCount;
-            progressState.SearchedChannelCount = localSearchedChannelCount;
-            progressState.DeletedMessageCount = localDeletedMessageCount;
-            progress.Report(progressState);
-        }
-
-        foreach (var channel in finalIDList)
-        {
-            var messageList = await GetAllMessagesByUserInChannel(channel, lastUserID, true, rateLimitCallback, ct);
-
-            Interlocked.Add(ref localFoundMessageCount, messageList.Count);
-            Interlocked.Increment(ref localSearchedChannelCount);
-            reportProgress();
-
-            taskList.Add(Task.Run(() => DeleteMessagesFromMessageList(messageList,
-                new Progress<int>(_ =>
-                {
-                    Interlocked.Increment(ref localDeletedMessageCount);
-                    progressState.StatusMessage = "Deleting...";
-                    reportProgress();
-                }), rateLimitCallback, ct), ct));
-        }
-        await Task.WhenAll(taskList);
-
-        progressState.StatusMessage = "Finished!";
-        progress.Report(progressState);
-    }
-
-    private async Task<List<SearchLocation>> ResolveIDsAsync(string userProvidedIDs, bool eraseAllDMs, bool eraseAllGuilds, CancellationToken ct)
-    {
-        var finalIDList = new List<SearchLocation>();
-        var allGuildsList = (await GetUserGuilds(ct)).Select(x => x.Id);
-
-        if (eraseAllGuilds)
-            finalIDList.AddRange(allGuildsList.Select(x => new SearchLocation(x, true)));
-
-        if (eraseAllDMs)
-        {
-            var allDMsList = (await GetUserDMList(ct)).Select(x => x.Id);
-            finalIDList.AddRange(allDMsList.Select(x => new SearchLocation(x, false)));
-        }
-
-        foreach (string id in userProvidedIDs
-            .Split([',', ' ', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
-            .Select(x => string.Concat(x.Where(char.IsDigit))))
-        {
-            if (allGuildsList.Contains(id))
-            {
-                finalIDList.Add(new SearchLocation(id, true));
-            }
-            else
-            {
-                finalIDList.Add(new SearchLocation(id, false));
-            }
-        }
-
-        return finalIDList.DistinctBy(x => x.ID).ToList();
+        return JsonSerializer.Deserialize<T>(json) ?? throw new JsonException($"Null result for {typeof(T).Name}");
     }
 }
