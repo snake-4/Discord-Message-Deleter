@@ -23,7 +23,7 @@ This program will delete your Discord messages in the channels or guilds that yo
 ### Prerequisites
 
 You'll need the following to be able to run this program:
-* .NET Framework 4.8
+* .NET 10
 
 
 <!-- USAGE  -->

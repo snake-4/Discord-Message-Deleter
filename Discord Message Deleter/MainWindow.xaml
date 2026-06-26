@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Discord_Message_Deleter.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Discord_Message_Deleter"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Discord Message Deleter">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <Grid Padding="20" RowSpacing="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBox x:Name="authID_TextBox" 
+                 Header="Auth ID:" 
+                 PlaceholderText="Enter your discord authorization token..."/>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="20">
+            <CheckBox x:Name="erase_DMS_CheckBox" Content="Erase all DMs"/>
+            <CheckBox x:Name="erase_GUILDS_CheckBox" Content="Erase all Guilds"/>
+        </StackPanel>
+
+        <TextBox x:Name="channelIDsRTBox" Grid.Row="2" 
+                 Header="Channel IDs:" 
+                 AcceptsReturn="True" 
+                 TextWrapping="Wrap" 
+                 PlaceholderText="GId1, Id2, UId3..."/>
+
+        <Grid Grid.Row="3" ColumnSpacing="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="Searched Channels:" FontWeight="SemiBold"/>
+                <TextBlock x:Name="searchedChannelsLabel" Text="N/A"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+                <TextBlock Text="Deleted / Found Messages:" FontWeight="SemiBold"/>
+                <TextBlock x:Name="foundMessagesLabel" Text="N/A"/>
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="4" Spacing="5">
+            <TextBlock x:Name="toolStripStatusText" Text="Idle"/>
+            <ProgressBar x:Name="toolStripProgressBar" Minimum="0" Maximum="100" Value="0" HorizontalAlignment="Stretch"/>
+        </StackPanel>
+
+        <Grid Grid.Row="5" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="startButton" Content="Start" HorizontalAlignment="Stretch" Click="startButton_Click"/>
+            <Button x:Name="stopButton" Content="Stop" Grid.Column="1" HorizontalAlignment="Stretch" Click="stopButton_Click"/>
+            <Button x:Name="helpButton" Content="Help" Grid.Column="2" HorizontalAlignment="Stretch" Click="helpButton_Click"/>
+            <Button x:Name="aboutButton" Content="About" Grid.Column="3" HorizontalAlignment="Stretch" Click="aboutButton_Click"/>
+        </Grid>
+    </Grid>
+</Window>

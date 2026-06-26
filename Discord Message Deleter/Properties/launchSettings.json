@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Discord Message Deleter (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Discord Message Deleter (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
